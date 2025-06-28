@@ -1,88 +1,29 @@
-# Eliza Plugin Starter Template
+# ElizaOS Arbitrage Bot
 
-This repository provides a starter template for creating plugins for the [Eliza](https://github.com/ai16z/eliza) AI agent framework. It includes example implementations for search functionality using Tavily and Exa APIs.
+An autonomous AI agent that monitors and executes arbitrage opportunities across multiple decentralized exchanges (DEXs) using the ElizaOS framework.
 
-## Prerequisites
+## Features
 
-- Node.js 23+
-- pnpm
-- TypeScript knowledge
+- 🔄 **Real-time DEX Monitoring** - Continuous price monitoring across Uniswap, Sushiswap, and other major DEXs
+- ⚡ **Automated Execution** - Smart contract-based arbitrage execution with MEV protection
+- 🛡️ **Flashbots Integration** - Private mempool submissions to avoid front-running
+- 📊 **Risk Management** - Configurable profit thresholds and position sizing
+- 🤖 **AI-Powered** - Natural language interaction and reporting
 
-## Getting Started
+## Quick Start
 
-1. Clone this repository:
-```bash
-git clone https://github.com/yourusername/eliza-plugin-starter.git
-cd eliza-plugin-starter
-```
+### 1. Deploy on Railway (Recommended)
 
-2. Install dependencies:
-```bash
-pnpm install
-```
+[![Deploy on Railway](https://railway.app/button.svg)](https://railway.app/template/your-template-id)
 
-3. Compile the TypeScript code:
-```bash
-pnpm tsc
-```
+1. Click the Railway button above
+2. Connect your GitHub account
+3. Configure environment variables
+4. Deploy!
 
-4. Run the project using the 'direct' client:
-```bash
-pnpm exec node --loader ts-node/esm ./src/scripts/load-with-plugin.ts --characters=./characters/eternalai.character.json
-```
+### 2. Environment Setup
 
-**Note:** Only the 'direct' client will work within this repo since it uses mocked capabilities of the real client. Plugins developed here can be directly transposed into the main Eliza repository.
-
-## Project Overview
-
-This starter template is designed to work with the 'direct' client within this repository due to the mocked capabilities of the real client. Plugins developed here are fully compatible with the main Eliza repository and can be directly transposed.
-
-## Project Structure
-
-```
-src/
-  ├── plugins/
-  │   ├── tavily/     # Tavily search plugin implementation
-  │   └── exa/        # Exa search plugin implementation
-  ├── common/         # Shared utilities and types
-  └── index.ts        # Main entry point
-```
-
-## Creating a Plugin
-
-See the [Plugin Development Guide](docs/PLUGIN_GUIDE.md) for detailed instructions on creating your own plugin.
-
-## Running the Project
-
-You can run the project using the following command:
+Copy `.env.example` to create your configuration:
 
 ```bash
-pnpm exec node --loader ts-node/esm ./src/scripts/load-with-plugin.ts --characters=./characters/eternalai.character.json
-```
-
-**Alternatively,** to simplify this process, use the predefined script:
-
-```bash
-pnpm mock-eliza --characters=./characters/eternalai.character.json
-```
-
-This script will prompt for a comma-separated list of character files to load.
-
-**Note:** The 'mock-eliza' script uses the 'direct' client because the project contains mocked capabilities of the real client.
-
-## Example Plugins
-
-This template includes two example plugin implementations:
-
-1. Tavily Search Plugin: Demonstrates web search capabilities using the Tavily API
-2. Exa Search Plugin: Shows how to integrate with the Exa search API
-
-Check the individual plugin directories for specific documentation and usage instructions.
-
-## Contributing
-
-Contributions are welcome! Please read our [Contributing Guide](CONTRIBUTING.md) for details.
-
-## License
-
-MIT
+cp .env.example .env
