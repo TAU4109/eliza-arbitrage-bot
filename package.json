@@ -1,59 +1,23 @@
 {
   "name": "eliza-arbitrage-bot",
   "version": "1.0.0",
-  "description": "ElizaOS Arbitrage Bot with automatic DEX monitoring and execution",
-  "main": "dist/index.js",
   "type": "module",
-  "keywords": [
-    "elizaos",
-    "arbitrage",
-    "defi",
-    "trading-bot",
-    "ethereum",
-    "uniswap",
-    "flashbots"
-  ],
-  "author": "TAU4109 <jiro.okamoto001@gmail.com>",
-  "license": "MIT",
-  "repository": {
-    "type": "git",
-    "url": "https://github.com/TAU4109/eliza-arbitrage-bot.git"
-  },
   "engines": {
-    "node": ">=18.0.0",
-    "pnpm": ">=8.0.0"
+    "node": ">=18.0.0"
+  },
+  "scripts": {
+    "build": "npm install && npm run compile",
+    "compile": "tsc",
+    "start": "node dist/index.js",
+    "dev": "ts-node src/index.ts"
   },
   "dependencies": {
     "@elizaos/core": "latest",
     "@elizaos/plugin-arbitrage": "github:elizaos-plugins/plugin-arbitrage",
     "@elizaos/plugin-evm": "github:elizaos-plugins/plugin-evm",
-    "@elizaos/plugin-solana": "github:elizaos-plugins/plugin-solana",
-    "typescript": "^5.0.0",
+    "ethers": "^6.8.0",
+    "typescript": "^5.2.0",
     "ts-node": "^10.9.0",
-    "dotenv": "^16.0.0",
-    "ethers": "^6.7.0",
-    "ws": "^8.13.0"
-  },
-  "devDependencies": {
-    "@types/node": "^20.0.0",
-    "@types/ws": "^8.5.0",
-    "nodemon": "^3.0.0",
-    "prettier": "^3.0.0",
-    "eslint": "^8.40.0",
-    "@typescript-eslint/eslint-plugin": "^5.59.0",
-    "@typescript-eslint/parser": "^5.59.0"
-  },
-  "scripts": {
-    "build": "tsc",
-    "start": "node dist/index.js",
-    "dev": "ts-node src/index.ts",
-    "dev:watch": "nodemon --exec ts-node src/index.ts",
-    "mock-eliza": "node --loader ts-node/esm ./src/scripts/load-with-plugin.ts",
-    "test": "echo \"Tests not implemented yet\" && exit 0",
-    "lint": "eslint src/**/*.ts",
-    "format": "prettier --write src/**/*.ts",
-    "clean": "rm -rf dist",
-    "deploy": "pnpm build && pnpm start",
-    "setup": "pnpm install && pnpm build"
+    "dotenv": "^16.3.0"
   }
 }
