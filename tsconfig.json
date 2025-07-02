@@ -12,8 +12,7 @@
     "forceConsistentCasingInFileNames": true,
     "outDir": "./dist",
     "rootDir": "./src",
-    "resolveJsonModule": true,
-    "suppressImplicitAnyIndexErrors": true
+    "resolveJsonModule": true
   },
   "include": [
     "src/**/*"
