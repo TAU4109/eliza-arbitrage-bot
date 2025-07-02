@@ -2,22 +2,12 @@
   "name": "eliza-arbitrage-bot",
   "version": "1.0.0",
   "type": "module",
-  "engines": {
-    "node": ">=18.0.0"
+  "dependencies": {
+    "typescript": "^5.2.0",
+    "dotenv": "^16.3.0"
   },
   "scripts": {
-    "build": "npm install && npm run compile",
-    "compile": "tsc",
-    "start": "node dist/index.js",
-    "dev": "ts-node src/index.ts"
-  },
-  "dependencies": {
-    "@elizaos/core": "latest",
-    "@elizaos/plugin-arbitrage": "github:elizaos-plugins/plugin-arbitrage",
-    "@elizaos/plugin-evm": "github:elizaos-plugins/plugin-evm",
-    "ethers": "^6.8.0",
-    "typescript": "^5.2.0",
-    "ts-node": "^10.9.0",
-    "dotenv": "^16.3.0"
+    "build": "tsc",
+    "start": "node dist/index.js"
   }
 }
