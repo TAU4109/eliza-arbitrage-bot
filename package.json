@@ -7,7 +7,7 @@
   },
   "dependencies": {
     "@elizaos/core": "latest",
-    "@elizaos/plugin-arbitrage": "latest", // ここに追記
+    "@elizaos/plugin-arbitrage": "latest",
     "typescript": "^5.2.0",
     "dotenv": "^16.3.0",
     "@types/node": "^20.8.0"
