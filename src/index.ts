@@ -1,4 +1,4 @@
-// ElizaOS Arbitrage Bot - Latest API Compatible Version
+// ElizaOS Arbitrage Bot - Debug Fixed Version
 import dotenv from "dotenv";
 import { createServer } from "http";
 import { readFile } from "fs/promises";
@@ -8,18 +8,27 @@ import https from "https";
 // Load environment variables
 dotenv.config();
 
-// Railway 環境変数の処理
 const PORT = parseInt(process.env.PORT || "3000", 10);
 const RAILWAY_ENVIRONMENT = process.env.RAILWAY_ENVIRONMENT;
 const RAILWAY_SERVICE_NAME = process.env.RAILWAY_SERVICE_NAME;
-const RAILWAY_PROJECT_NAME = process.env.RAILWAY_PROJECT_NAME;
 
-console.log("🚀 ElizaOS Arbitrage Bot Starting...");
+console.log("🚀 ElizaOS Arbitrage Bot Starting (Debug Fixed)...");
 console.log("🌍 Environment:", process.env.NODE_ENV || "development");
 console.log("🚂 Railway Environment:", RAILWAY_ENVIRONMENT || "local");
 console.log("📦 Service:", RAILWAY_SERVICE_NAME || "local");
+console.log("🔌 Port:", PORT);
 
-// 型定義（最新ElizaOS API準拠）
+// エラーハンドリングの強化
+process.on('uncaughtException', (error) => {
+  console.error('❌ Uncaught Exception:', error);
+  console.error('Stack:', error.stack);
+});
+
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('❌ Unhandled Rejection at:', promise, 'reason:', reason);
+});
+
+// 型定義
 interface Memory {
   userId: string;
   roomId: string;
@@ -28,12 +37,6 @@ interface Memory {
     [key: string]: any;
   };
   [key: string]: any;
-}
-
-interface State {
-  values: { [key: string]: any };
-  data: { [key: string]: any };
-  text: string;
 }
 
 interface Character {
@@ -48,50 +51,13 @@ interface Character {
   [key: string]: any;
 }
 
-interface IAgentRuntime {
-  character: Character;
-  databaseAdapter?: any;
-  token?: string;
-  modelProvider?: string;
-  plugins?: any[];
-  evaluators?: any[];
-  
-  // 最新APIメソッド（推定）
-  composeState?(message: Memory, providers?: string[]): Promise<State>;
-  evaluate?(message: Memory): Promise<any>;
-  handleMessage?(message: Memory): Promise<any>;
-  processAction?(action: string, message: Memory): Promise<any>;
-}
-
 // 環境変数設定
-interface RailwayEnvConfig {
-  ANTHROPIC_API_KEY?: string;
-  OPENAI_API_KEY?: string;
-  INFURA_PROJECT_ID?: string;
-  ALCHEMY_API_KEY?: string;
-  ETHEREUM_RPC_URL?: string;
-  POLYGON_RPC_URL?: string;
-  COINGECKO_API_KEY?: string;
-  COINMARKETCAP_API_KEY?: string;
-  TELEGRAM_BOT_TOKEN?: string;
-  DISCORD_WEBHOOK_URL?: string;
-  WEBHOOK_SECRET?: string;
-  API_KEY?: string;
-}
-
-const config: RailwayEnvConfig = {
+const config = {
   ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY,
   OPENAI_API_KEY: process.env.OPENAI_API_KEY,
   INFURA_PROJECT_ID: process.env.INFURA_PROJECT_ID,
   ALCHEMY_API_KEY: process.env.ALCHEMY_API_KEY,
-  ETHEREUM_RPC_URL: process.env.ETHEREUM_RPC_URL,
-  POLYGON_RPC_URL: process.env.POLYGON_RPC_URL,
   COINGECKO_API_KEY: process.env.COINGECKO_API_KEY,
-  COINMARKETCAP_API_KEY: process.env.COINMARKETCAP_API_KEY,
-  TELEGRAM_BOT_TOKEN: process.env.TELEGRAM_BOT_TOKEN,
-  DISCORD_WEBHOOK_URL: process.env.DISCORD_WEBHOOK_URL,
-  WEBHOOK_SECRET: process.env.WEBHOOK_SECRET,
-  API_KEY: process.env.API_KEY,
 };
 
 // サービス状態管理
@@ -100,9 +66,7 @@ interface ServiceStatus {
   ai: boolean;
   blockchain: boolean;
   priceFeeds: boolean;
-  notifications: boolean;
   deployment: 'railway' | 'local';
-  region?: string;
 }
 
 let serviceStatus: ServiceStatus = {
@@ -110,39 +74,29 @@ let serviceStatus: ServiceStatus = {
   ai: false,
   blockchain: false,
   priceFeeds: false,
-  notifications: false,
   deployment: RAILWAY_ENVIRONMENT ? 'railway' : 'local',
-  region: process.env.RAILWAY_REGION
 };
 
 // ElizaOS エージェント
-let elizaAgent: IAgentRuntime | null = null;
+let elizaAgent: any = null;
+let elizaAvailableMethods: string[] = [];
 
 // デフォルトキャラクター
 const defaultCharacter: Character = {
   name: "ArbitrageTrader",
   bio: [
     "AI-powered DeFi arbitrage specialist",
-    "Expert in blockchain analysis and risk management",
-    "Provides educational content about DeFi trading strategies"
+    "Expert in blockchain analysis and risk management"
   ],
-  description: "DeFi arbitrage trading specialist focusing on education and analysis",
-  personality: "analytical, helpful, risk-aware, educational",
+  description: "DeFi arbitrage trading specialist",
+  personality: "analytical, helpful, risk-aware",
   knowledge: [
-    "DeFi protocols (Uniswap, SushiSwap, Aave, Compound)",
-    "Arbitrage strategies and risk management", 
-    "Gas optimization techniques",
-    "Market analysis and trading psychology",
-    "Blockchain technology and smart contracts"
+    "DeFi protocols",
+    "Arbitrage strategies", 
+    "Risk management",
+    "Blockchain technology"
   ],
-  modelProvider: "anthropic",
-  plugins: ["@elizaos/plugin-arbitrage"],
-  settings: {
-    arbitrage: {
-      enableAutoTrading: false,
-      riskLevel: "conservative"
-    }
-  }
+  modelProvider: "anthropic"
 };
 
 // HTTP request helper
@@ -170,7 +124,7 @@ function makeHttpRequest(options: any, data?: string): Promise<any> {
       reject(error);
     });
 
-    req.setTimeout(10000, () => {
+    req.setTimeout(15000, () => {
       req.destroy();
       reject(new Error('Request timeout'));
     });
@@ -182,70 +136,35 @@ function makeHttpRequest(options: any, data?: string): Promise<any> {
   });
 }
 
-// ElizaOS 初期化（最新API対応）
+// ElizaOS 初期化（簡略化＋エラーハンドリング強化）
 async function initializeElizaOS(): Promise<boolean> {
   try {
-    console.log("🔄 Initializing ElizaOS Core...");
+    console.log("🔄 Starting ElizaOS initialization...");
     
-    // パッケージの存在確認
-    try {
-      const fs = await import("fs");
-      const path = await import("path");
-      const packagePath = path.join(process.cwd(), 'node_modules', '@elizaos', 'core');
-      
-      if (!fs.existsSync(packagePath)) {
-        console.log("📦 @elizaos/core package not found in node_modules");
-        throw new Error("Package not installed");
-      }
-      
-      console.log("📦 @elizaos/core package found");
-    } catch (fsError) {
-      console.log("⚠️ Cannot check package existence:", fsError);
-    }
-
-    // 動的インポート（複数のアプローチを試行）
+    // 動的インポート
     let elizaModule: any;
-    let AgentRuntime: any;
-    
     try {
-      // アプローチ1: 基本インポート
       elizaModule = await import("@elizaos/core");
-      console.log("✅ Successfully imported @elizaos/core");
-      console.log("📦 Available exports:", Object.keys(elizaModule));
+      console.log("✅ ElizaOS module imported successfully");
       
-      // AgentRuntimeの取得を試行
-      AgentRuntime = elizaModule.AgentRuntime || elizaModule.default?.AgentRuntime;
-      
-      if (!AgentRuntime) {
-        // 他の可能性のある名前を試行
-        const possibleNames = ['Runtime', 'Agent', 'ElizaRuntime', 'Core'];
-        for (const name of possibleNames) {
-          if (elizaModule[name]) {
-            AgentRuntime = elizaModule[name];
-            console.log(`✅ Found runtime as: ${name}`);
-            break;
-          }
-        }
-      }
+      // 利用可能なエクスポートをログ出力
+      const exports = Object.keys(elizaModule);
+      console.log(`📦 ElizaOS exports (${exports.length}):`, exports.slice(0, 10), exports.length > 10 ? '...' : '');
       
     } catch (importError) {
-      console.log("⚠️ Direct import failed:", importError);
-      
-      // アプローチ2: require fallback
-      try {
-        elizaModule = require("@elizaos/core");
-        AgentRuntime = elizaModule.AgentRuntime || elizaModule.default?.AgentRuntime;
-        console.log("✅ Successfully required @elizaos/core");
-      } catch (requireError) {
-        console.log("⚠️ Require also failed:", requireError);
-        throw new Error("Unable to load ElizaOS core module");
-      }
+      console.log("⚠️ ElizaOS import failed:", importError);
+      throw importError;
     }
 
+    // AgentRuntimeの取得
+    const AgentRuntime = elizaModule.AgentRuntime || elizaModule.default?.AgentRuntime;
+    
     if (!AgentRuntime) {
-      console.log("⚠️ AgentRuntime not found in available exports:", Object.keys(elizaModule));
-      throw new Error("AgentRuntime class not found in ElizaOS module");
+      console.log("⚠️ AgentRuntime not found in exports");
+      throw new Error("AgentRuntime not available");
     }
+
+    console.log("✅ AgentRuntime class found");
 
     // キャラクター設定のロード
     let characterConfig: Character;
@@ -259,28 +178,37 @@ async function initializeElizaOS(): Promise<boolean> {
       characterConfig = defaultCharacter;
     }
 
-    // AgentRuntime インスタンス作成
+    // AgentRuntime インスタンス作成（最小限の設定）
     try {
+      console.log("🔧 Creating AgentRuntime instance...");
+      
       elizaAgent = new AgentRuntime({
         character: characterConfig,
-        databaseAdapter: null, // Railwayでは簡素化
-        token: config.ANTHROPIC_API_KEY || config.OPENAI_API_KEY || "default-token",
-        modelProvider: characterConfig.modelProvider || "anthropic",
-        evaluators: [],
-        plugins: [] // プラグインは後で追加
+        databaseAdapter: null,
+        token: config.ANTHROPIC_API_KEY || config.OPENAI_API_KEY || "test-token",
+        modelProvider: "anthropic"
       });
 
-      console.log("✅ AgentRuntime instance created");
+      console.log("✅ AgentRuntime instance created successfully");
       
-      // 利用可能なメソッドをデバッグ出力
-      console.log("--- ElizaOS Agent Methods ---");
-      const methods = Object.getOwnPropertyNames(Object.getPrototypeOf(elizaAgent))
-        .filter(name => typeof (elizaAgent as any)[name] === 'function' && name !== 'constructor');
-      console.log("Available methods:", methods);
-      console.log("--- End Methods Debug ---");
+      // 利用可能なメソッドを取得（安全に）
+      try {
+        elizaAvailableMethods = Object.getOwnPropertyNames(Object.getPrototypeOf(elizaAgent))
+          .filter(name => typeof elizaAgent[name] === 'function' && name !== 'constructor');
+        
+        console.log(`📋 Available methods (${elizaAvailableMethods.length}):`, elizaAvailableMethods.slice(0, 10));
+        
+        // 特に興味のあるメソッドをチェック
+        const importantMethods = ['processMessage', 'handleMessage', 'composeState', 'processAction', 'evaluate'];
+        const foundMethods = importantMethods.filter(method => elizaAvailableMethods.includes(method));
+        console.log("🎯 Important methods found:", foundMethods);
+        
+      } catch (methodError) {
+        console.log("⚠️ Could not analyze methods:", methodError);
+      }
 
       serviceStatus.elizaos = 'available';
-      console.log("✅ ElizaOS Core initialized successfully");
+      console.log("✅ ElizaOS initialization completed successfully");
       return true;
 
     } catch (runtimeError) {
@@ -290,25 +218,25 @@ async function initializeElizaOS(): Promise<boolean> {
     }
 
   } catch (error) {
-    console.log("⚠️ ElizaOS initialization failed:", error instanceof Error ? error.message : String(error));
+    console.log("❌ ElizaOS initialization failed:", error instanceof Error ? error.message : String(error));
     serviceStatus.elizaos = 'unavailable';
     return false;
   }
 }
 
-// AI Chat Service (Anthropic/OpenAI直接統合)
+// AI Chat Service
 class AIChatService {
   async generateResponse(message: string, context?: string): Promise<string> {
-    // ElizaOSが利用可能な場合は、そのメソッドを使用
+    // ElizaOSエージェントを試行
     if (serviceStatus.elizaos === 'available' && elizaAgent) {
       try {
-        return await this.useElizaOSAgent(message, context);
+        return await this.useElizaAgent(message, context);
       } catch (error) {
-        console.log("⚠️ ElizaOS agent failed, falling back to direct API");
+        console.log("⚠️ ElizaOS agent error, falling back:", error);
       }
     }
 
-    // フォールバック: 直接API呼び出し
+    // フォールバック: 直接API
     if (config.ANTHROPIC_API_KEY) {
       try {
         return await this.callAnthropic(message, context);
@@ -328,7 +256,7 @@ class AIChatService {
     return this.generateRuleBasedResponse(message);
   }
 
-  private async useElizaOSAgent(message: string, context?: string): Promise<string> {
+  private async useElizaAgent(message: string, context?: string): Promise<string> {
     const memory: Memory = {
       userId: "web-user",
       roomId: "web-chat",
@@ -339,32 +267,55 @@ class AIChatService {
       timestamp: new Date().toISOString()
     };
 
-    // 最新ElizaOS APIのメソッドを試行
-    const agent = elizaAgent as any;
-    
     // 利用可能なメソッドを順次試行
-    if (typeof agent.handleMessage === 'function') {
-      const result = await agent.handleMessage(memory);
-      return result?.content?.text || result?.text || "応答を生成できませんでした。";
-    }
-    
-    if (typeof agent.processAction === 'function') {
-      const result = await agent.processAction('chat', memory);
-      return result?.content?.text || result?.text || "応答を生成できませんでした。";
-    }
-    
-    if (typeof agent.composeState === 'function') {
-      const state = await agent.composeState(memory);
-      return state?.text || "状態を構成できませんでした。";
+    const methodsToTry = [
+      'processMessage',
+      'handleMessage', 
+      'composeState',
+      'processAction',
+      'evaluate'
+    ];
+
+    for (const methodName of methodsToTry) {
+      if (elizaAvailableMethods.includes(methodName)) {
+        try {
+          console.log(`🔄 Trying ElizaOS method: ${methodName}`);
+          
+          let result;
+          if (methodName === 'processAction') {
+            result = await elizaAgent[methodName]('chat', memory);
+          } else if (methodName === 'composeState') {
+            result = await elizaAgent[methodName](memory);
+          } else {
+            result = await elizaAgent[methodName](memory);
+          }
+          
+          console.log(`✅ ElizaOS ${methodName} succeeded`);
+          
+          // 結果から文字列を抽出
+          if (typeof result === 'string') {
+            return result;
+          } else if (result?.content?.text) {
+            return result.content.text;
+          } else if (result?.text) {
+            return result.text;
+          } else if (result && typeof result === 'object') {
+            return JSON.stringify(result);
+          }
+          
+        } catch (methodError) {
+          console.log(`⚠️ ElizaOS ${methodName} failed:`, methodError);
+          continue;
+        }
+      }
     }
 
-    throw new Error("No suitable ElizaOS method found for message processing");
+    throw new Error("No suitable ElizaOS method succeeded");
   }
 
   private async callAnthropic(message: string, context?: string): Promise<string> {
     const systemPrompt = `あなたは経験豊富なDeFiアービトラージトレーダーです。
 実用的で分かりやすいアドバイスを日本語で提供してください。
-専門知識: ブロックチェーン、DeFi、アービトラージ戦略、リスク管理
 ${context ? `追加情報: ${context}` : ''}`;
 
     const payload = JSON.stringify({
@@ -435,20 +386,7 @@ ${context ? `追加情報: ${context}` : ''}`;
 • ガス代とスリッページの考慮
 • リスク管理の重要性
 • 流動性の確保`,
-      "defi": "DeFiでは、Uniswap、SushiSwap、Aaveなどのプロトコル間で価格差や金利差が発生します。",
-      "リスク": `主なリスク要因:
-• ガス代の高騰
-• スリッページ
-• 流動性不足
-• スマートコントラクトリスク
-• MEV攻撃
-• 一時的損失`,
-      "始め方": `アービトラージの始め方:
-1. 少額から開始
-2. テストネットで練習
-3. ガス代を十分に考慮
-4. 複数のプラットフォームを監視
-5. リスク管理戦略の確立`,
+      "こんにちは": "こんにちは！DeFiアービトラージについてお手伝いします。何かご質問はありますか？"
     };
 
     for (const [keyword, response] of Object.entries(responses)) {
@@ -457,174 +395,45 @@ ${context ? `追加情報: ${context}` : ''}`;
       }
     }
 
-    return `「${message}」についてお答えします。より詳細な情報が必要でしたら、具体的な質問をお聞かせください。
+    return `「${message}」についてお答えします。
 
-利用可能なトピック: 価格情報、ガス代、アービトラージ戦略、DeFi、リスク管理、始め方`;
+利用可能なトピック:
+• 価格情報 (/prices)
+• ガス代情報 (/gas) 
+• アービトラージ戦略
+• DeFi基礎知識
+• リスク管理
+
+より詳細な情報が必要でしたら、具体的な質問をお聞かせください。`;
   }
 }
 
-// Blockchain Service (変更なし)
-class BlockchainService {
-  private getRpcUrl(network: string = "ethereum"): string {
-    switch (network) {
-      case "ethereum":
-        if (config.ALCHEMY_API_KEY) return `https://eth-mainnet.g.alchemy.com/v2/${config.ALCHEMY_API_KEY}`;
-        if (config.INFURA_PROJECT_ID) return `https://mainnet.infura.io/v3/${config.INFURA_PROJECT_ID}`;
-        return "https://cloudflare-eth.com";
-      case "polygon":
-        if (config.ALCHEMY_API_KEY) return `https://polygon-mainnet.g.alchemy.com/v2/${config.ALCHEMY_API_KEY}`;
-        if (config.INFURA_PROJECT_ID) return `https://polygon-mainnet.infura.io/v3/${config.INFURA_PROJECT_ID}`;
-        return "https://polygon-rpc.com";
-      default:
-        throw new Error(`Unsupported network: ${network}`);
-    }
-  }
-
-  async getGasPrice(network: string = "ethereum"): Promise<number> {
-    const rpcUrl = this.getRpcUrl(network);
-    const payload = JSON.stringify({
-      jsonrpc: "2.0",
-      method: "eth_gasPrice",
-      params: [],
-      id: 1
-    });
-
-    const url = new URL(rpcUrl);
-    const options = {
-      hostname: url.hostname,
-      port: url.port || 443,
-      path: url.pathname + url.search,
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Content-Length': Buffer.byteLength(payload)
-      }
-    };
-
-    const response = await makeHttpRequest(options, payload);
-    return parseInt(response.result, 16) / 1e9;
-  }
-
-  async getLatestBlock(network: string = "ethereum"): Promise<number> {
-    const rpcUrl = this.getRpcUrl(network);
-    const payload = JSON.stringify({
-      jsonrpc: "2.0",
-      method: "eth_blockNumber",
-      params: [],
-      id: 1
-    });
-
-    const url = new URL(rpcUrl);
-    const options = {
-      hostname: url.hostname,
-      port: url.port || 443,
-      path: url.pathname + url.search,
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Content-Length': Buffer.byteLength(payload)
-      }
-    };
-
-    const response = await makeHttpRequest(options, payload);
-    return parseInt(response.result, 16);
-  }
-}
-
-// Price Feed Service (変更なし)
-class PriceFeedService {
-  async getCryptoPrices(symbols: string[] = ['bitcoin', 'ethereum']): Promise<any> {
-    try {
-      const symbolsParam = symbols.join(',');
-      const options = {
-        hostname: 'api.coingecko.com',
-        port: 443,
-        path: `/api/v3/simple/price?ids=${symbolsParam}&vs_currencies=usd&include_24hr_change=true`,
-        method: 'GET',
-        headers: config.COINGECKO_API_KEY ? {
-          'x-cg-demo-api-key': config.COINGECKO_API_KEY
-        } : {}
-      };
-
-      return await makeHttpRequest(options);
-    } catch (error) {
-      console.error('Price feed error:', error);
-      return {
-        bitcoin: { usd: 43000, usd_24h_change: 2.5 },
-        ethereum: { usd: 2600, usd_24h_change: 1.8 }
-      };
-    }
-  }
-}
-
-// サービスインスタンス
+// 簡略化されたサービス
 const aiService = new AIChatService();
-const blockchainService = new BlockchainService();
-const priceFeedService = new PriceFeedService();
 
 // サービス初期化
 async function initializeServices() {
-  console.log("🔄 Initializing all services...");
+  console.log("🔄 Initializing services...");
 
-  // ElizaOS 初期化
-  await initializeElizaOS();
-
-  // AI Service Test
   try {
+    // ElizaOS 初期化
+    await initializeElizaOS();
+
+    // AI Service Test
     await aiService.generateResponse("テスト");
     serviceStatus.ai = true;
     console.log("✅ AI service ready");
-  } catch (error) {
-    console.log("⚠️ AI service limited:", error);
-  }
 
-  // Blockchain Service Test
-  try {
-    await blockchainService.getLatestBlock();
-    serviceStatus.blockchain = true;
-    console.log("✅ Blockchain service ready");
+    console.log("📊 Services initialized:", serviceStatus);
   } catch (error) {
-    console.log("⚠️ Blockchain service limited:", error);
+    console.error("⚠️ Service initialization error:", error);
   }
-
-  // Price Feed Test
-  try {
-    await priceFeedService.getCryptoPrices(['bitcoin']);
-    serviceStatus.priceFeeds = true;
-    console.log("✅ Price feed service ready");
-  } catch (error) {
-    console.log("⚠️ Price feed service limited:", error);
-  }
-
-  console.log("📊 All services initialized:", serviceStatus);
 }
 
 // Chat Handler
 async function handleChat(message: string, userId: string = "user") {
   try {
-    let context = "";
-
-    // コンテキスト情報の収集
-    if (serviceStatus.priceFeeds && message.toLowerCase().includes('価格')) {
-      try {
-        const prices = await priceFeedService.getCryptoPrices(['bitcoin', 'ethereum']);
-        context += `現在価格: BTC $${prices.bitcoin?.usd}, ETH $${prices.ethereum?.usd}. `;
-      } catch (error) {
-        console.error("Price context error:", error);
-      }
-    }
-
-    if (serviceStatus.blockchain && message.toLowerCase().includes('ガス')) {
-      try {
-        const gasPrice = await blockchainService.getGasPrice();
-        context += `Ethereumガス価格: ${gasPrice.toFixed(2)} Gwei. `;
-      } catch (error) {
-        console.error("Gas context error:", error);
-      }
-    }
-
-    // AI応答生成
-    const response = await aiService.generateResponse(message, context);
+    const response = await aiService.generateResponse(message);
 
     return {
       response,
@@ -632,8 +441,8 @@ async function handleChat(message: string, userId: string = "user") {
       agent: "ArbitrageTrader",
       mode: serviceStatus.elizaos === 'available' ? "ElizaOS Enhanced" : 
             serviceStatus.ai ? "AI Enhanced" : "Rule Based",
-      context: context || undefined,
-      elizaos_status: serviceStatus.elizaos
+      elizaos_status: serviceStatus.elizaos,
+      elizaos_methods: elizaAvailableMethods.length
     };
   } catch (error) {
     console.error("Chat error:", error);
@@ -645,11 +454,12 @@ async function handleChat(message: string, userId: string = "user") {
   }
 }
 
-// HTTP Server
+// HTTP Server（簡略化）
 const server = createServer(async (req, res) => {
+  // CORS headers
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
-  res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
+  res.setHeader("Access-Control-Allow-Headers", "Content-Type");
 
   if (req.method === "OPTIONS") {
     res.writeHead(200);
@@ -663,29 +473,22 @@ const server = createServer(async (req, res) => {
       res.end(JSON.stringify({
         status: "healthy",
         service: "eliza-arbitrage-bot",
-        version: "1.4.0-elizaos-compatible",
+        version: "1.6.0-debug-fixed",
         timestamp: new Date().toISOString(),
         uptime: process.uptime(),
         environment: {
           railway: RAILWAY_ENVIRONMENT || "local",
           service: RAILWAY_SERVICE_NAME,
-          project: RAILWAY_PROJECT_NAME,
           region: process.env.RAILWAY_REGION
         },
         services: serviceStatus,
         elizaos: {
           status: serviceStatus.elizaos,
           agent_available: elizaAgent !== null,
-          methods_available: elizaAgent ? Object.getOwnPropertyNames(Object.getPrototypeOf(elizaAgent))
-            .filter(name => typeof (elizaAgent as any)[name] === 'function' && name !== 'constructor') : []
-        },
-        endpoints: {
-          health: "/health",
-          config: "/config", 
-          chat: "/chat",
-          prices: "/prices",
-          gas: "/gas",
-          elizaos: "/elizaos"
+          methods_count: elizaAvailableMethods.length,
+          key_methods: elizaAvailableMethods.filter(m => 
+            ['processMessage', 'handleMessage', 'composeState', 'processAction'].includes(m)
+          )
         }
       }));
     }
@@ -695,52 +498,15 @@ const server = createServer(async (req, res) => {
         elizaos_integration: {
           status: serviceStatus.elizaos,
           agent_instance: elizaAgent !== null,
-          available_methods: elizaAgent ? Object.getOwnPropertyNames(Object.getPrototypeOf(elizaAgent))
-            .filter(name => typeof (elizaAgent as any)[name] === 'function' && name !== 'constructor') : [],
-          character: elizaAgent ? (elizaAgent as any).character?.name : "Not loaded",
-          plugins: elizaAgent ? (elizaAgent as any).plugins || [] : [],
-          troubleshooting: {
-            package_found: "Check /config for package status",
-            methods_issue: serviceStatus.elizaos === 'limited' ? "AgentRuntime created but methods may have changed" : null,
-            recommendations: [
-              serviceStatus.elizaos === 'unavailable' && "Install @elizaos/core package",
-              serviceStatus.elizaos === 'limited' && "Check ElizaOS documentation for latest API",
-              "Verify environment variables are correctly set"
-            ].filter(Boolean)
-          }
+          available_methods_count: elizaAvailableMethods.length,
+          available_methods: elizaAvailableMethods,
+          message_processing_methods: elizaAvailableMethods.filter(m => 
+            m.toLowerCase().includes('message') || 
+            m.toLowerCase().includes('process') ||
+            m.toLowerCase().includes('handle') ||
+            m.toLowerCase().includes('compose')
+          )
         }
-      }));
-    }
-    else if (req.url === "/config") {
-      res.writeHead(200, { "Content-Type": "application/json" });
-      res.end(JSON.stringify({
-        environment: {
-          NODE_ENV: process.env.NODE_ENV,
-          RAILWAY_ENVIRONMENT,
-          RAILWAY_SERVICE_NAME,
-          RAILWAY_PROJECT_NAME
-        },
-        api_keys: {
-          ANTHROPIC_API_KEY: config.ANTHROPIC_API_KEY ? "✅ Configured" : "❌ Missing",
-          OPENAI_API_KEY: config.OPENAI_API_KEY ? "✅ Configured" : "❌ Missing",
-          INFURA_PROJECT_ID: config.INFURA_PROJECT_ID ? "✅ Configured" : "❌ Missing",
-          ALCHEMY_API_KEY: config.ALCHEMY_API_KEY ? "✅ Configured" : "❌ Missing",
-          COINGECKO_API_KEY: config.COINGECKO_API_KEY ? "✅ Configured" : "❌ Missing"
-        },
-        services: serviceStatus,
-        elizaos: {
-          integration_status: serviceStatus.elizaos,
-          package_available: "Check node_modules/@elizaos/core",
-          agent_methods: elizaAgent ? Object.getOwnPropertyNames(Object.getPrototypeOf(elizaAgent))
-            .filter(name => typeof (elizaAgent as any)[name] === 'function' && name !== 'constructor') : []
-        },
-        recommendations: [
-          !config.ANTHROPIC_API_KEY && !config.OPENAI_API_KEY && "Add AI API key for enhanced chat",
-          !config.INFURA_PROJECT_ID && !config.ALCHEMY_API_KEY && "Add blockchain RPC provider",
-          !config.COINGECKO_API_KEY && "Add CoinGecko API key for better price data",
-          serviceStatus.elizaos === 'unavailable' && "Install @elizaos/core for full ElizaOS integration",
-          serviceStatus.elizaos === 'limited' && "Check ElizaOS documentation for API changes"
-        ].filter(Boolean)
       }));
     }
     else if (req.url === "/chat" && req.method === "POST") {
@@ -766,56 +532,20 @@ const server = createServer(async (req, res) => {
         }
       });
     }
-    else if (req.url === "/prices") {
-      try {
-        const prices = await priceFeedService.getCryptoPrices([
-          'bitcoin', 'ethereum', 'binancecoin', 'matic-network'
-        ]);
-        
-        res.writeHead(200, { "Content-Type": "application/json" });
-        res.end(JSON.stringify({
-          timestamp: new Date().toISOString(),
-          source: "CoinGecko",
-          prices,
-          railway_region: process.env.RAILWAY_REGION
-        }));
-      } catch (error) {
-        res.writeHead(500, { "Content-Type": "application/json" });
-        res.end(JSON.stringify({ error: "Failed to fetch prices" }));
-      }
-    }
-    else if (req.url === "/gas") {
-      try {
-        const [ethGas, ethBlock] = await Promise.all([
-          blockchainService.getGasPrice("ethereum"),
-          blockchainService.getLatestBlock("ethereum")
-        ]);
-
-        res.writeHead(200, { "Content-Type": "application/json" });
-        res.end(JSON.stringify({
-          timestamp: new Date().toISOString(),
-          ethereum: {
-            gasPrice: `${ethGas.toFixed(2)} Gwei`,
-            latestBlock: ethBlock
-          },
-          railway_region: process.env.RAILWAY_REGION
-        }));
-      } catch (error) {
-        res.writeHead(500, { "Content-Type": "application/json" });
-        res.end(JSON.stringify({ error: "Failed to fetch gas data" }));
-      }
-    }
     else {
       res.writeHead(404, { "Content-Type": "application/json" });
       res.end(JSON.stringify({
         error: "Not Found",
-        available_endpoints: ["/", "/health", "/config", "/chat", "/prices", "/gas", "/elizaos"]
+        available_endpoints: ["/", "/health", "/chat", "/elizaos"]
       }));
     }
   } catch (error) {
     console.error("Server error:", error);
     res.writeHead(500, { "Content-Type": "application/json" });
-    res.end(JSON.stringify({ error: "Internal server error" }));
+    res.end(JSON.stringify({ 
+      error: "Internal server error",
+      details: error instanceof Error ? error.message : String(error)
+    }));
   }
 });
 
@@ -831,39 +561,35 @@ const gracefulShutdown = (signal: string) => {
 process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
 process.on('SIGINT', () => gracefulShutdown('SIGINT'));
 
-// Railway heartbeat
-if (RAILWAY_ENVIRONMENT) {
-  console.log("🚂 Running in Railway environment");
-  
-  setInterval(() => {
-    console.log(`💓 Railway heartbeat - ${new Date().toISOString()} - ElizaOS: ${serviceStatus.elizaos}`);
-  }, 5 * 60 * 1000);
-}
-
 // Start server
 async function start() {
-  console.log("🚀 Starting ElizaOS-compatible Arbitrage Bot...");
-  
-  await initializeServices();
-  
-  server.listen(PORT, "0.0.0.0", () => {
-    console.log(`🌐 Server running on port ${PORT}`);
-    console.log(`🔗 Health: https://${RAILWAY_SERVICE_NAME || 'localhost'}/health`);
-    console.log(`📊 ElizaOS Status: https://${RAILWAY_SERVICE_NAME || 'localhost'}/elizaos`);
-    console.log(`⚙️ Config: https://${RAILWAY_SERVICE_NAME || 'localhost'}/config`);
-    console.log("✅ ElizaOS-compatible deployment ready");
+  try {
+    console.log("🚀 Starting Enhanced Arbitrage Bot...");
     
-    // ElizaOS統合状態の報告
-    if (serviceStatus.elizaos === 'available') {
-      console.log("🎉 ElizaOS fully integrated and operational");
-    } else if (serviceStatus.elizaos === 'limited') {
-      console.log("⚠️ ElizaOS partially integrated - check /elizaos endpoint for details");
-    } else {
-      console.log("📦 ElizaOS not available - running with direct API integration");
-    }
-  });
+    // サービス初期化
+    await initializeServices();
+    
+    // サーバー開始
+    server.listen(PORT, "0.0.0.0", () => {
+      console.log(`🌐 Server running on port ${PORT}`);
+      console.log(`🔗 Health: http://localhost:${PORT}/health`);
+      console.log(`📊 ElizaOS: http://localhost:${PORT}/elizaos`);
+      console.log(`💬 Chat: http://localhost:${PORT}/chat`);
+      console.log("✅ Server startup completed successfully");
+      
+      // ElizaOS状態レポート
+      if (serviceStatus.elizaos === 'available') {
+        console.log(`🎉 ElizaOS fully integrated with ${elizaAvailableMethods.length} methods`);
+      } else {
+        console.log("📦 ElizaOS integration limited or unavailable");
+      }
+    });
+    
+  } catch (error) {
+    console.error("❌ Server startup failed:", error);
+    process.exit(1);
+  }
 }
 
-start().catch(console.error);
-
-export default server;
+// アプリケーション開始
+start();
