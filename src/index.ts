@@ -123,6 +123,17 @@ async function initializeElizaOS(): Promise<boolean> {
     console.log("✅ ElizaOS Core initialized successfully");
     console.log("🎯 Agent:", characterConfig.name);
     
+    // ここからデバッグログを追加します
+    console.log("--- DEBUG LOG START ---");
+    console.log("DEBUG: Type of elizaAgent:", typeof elizaAgent);
+    console.log("DEBUG: Is elizaAgent null?", elizaAgent === null);
+    if (elizaAgent) {
+        console.log("DEBUG: Does elizaAgent have processMessage?", typeof (elizaAgent as any).processMessage === 'function');
+        // もし AgentRuntime オブジェクトの具体的な構造をさらに詳しく見たい場合は、以下を追加できますが、大量のログになる可能性があります。
+        // console.log("DEBUG: elizaAgent object:", elizaAgent); 
+    }
+    console.log("--- DEBUG LOG END ---");
+
     return true;
   } catch (error) {
     console.log("⚠️ ElizaOS Core initialization failed, running in basic mode");
@@ -239,7 +250,7 @@ Each strategy has different risk profiles and capital requirements.`,
 • 高い流動性、低い手数料
 • KYC必須、カウンターパーティリスク
 
-**分散型取引所(DEX):**
+**分散型取引所(DEX)::**
 • Uniswap, SushiSwap, PancakeSwap
 • 非許可型、MEV機会豊富
 • ガス代、スリッページに注意
