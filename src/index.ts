@@ -1,4 +1,4 @@
-// ElizaOS Arbitrage Bot - Phase 2: Core Integration
+// ElizaOS Arbitrage Bot - Phase 2: Core Integration (修正版)
 import dotenv from "dotenv";
 import { createServer } from "http";
 import { readFile } from "fs/promises";
@@ -11,18 +11,72 @@ console.log("🤖 ElizaOS Arbitrage Bot Starting...");
 console.log("📊 Environment:", process.env.NODE_ENV || "development");
 console.log("🔧 Daemon Mode:", process.env.DAEMON_PROCESS || "false");
 
+// 型定義
+interface Character {
+  name: string;
+  bio: string[];
+  [key: string]: any;
+}
+
+interface AgentRuntime {
+  processMessage(params: any): Promise<any>;
+}
+
+interface ChatResponse {
+  response: string;
+  timestamp?: string;
+  agent?: string;
+  error?: string;
+}
+
 // Global variables for ElizaOS
-let elizaAgent: any = null;
+let elizaAgent: AgentRuntime | null = null;
 let isElizaAvailable = false;
 
+// デフォルトキャラクター設定
+const defaultCharacter: Character = {
+  name: "ArbitrageTrader",
+  bio: ["AI-powered arbitrage trading assistant"],
+  description: "DeFi arbitrage trading specialist",
+  personality: "analytical, helpful, risk-aware",
+  knowledge: ["DeFi", "arbitrage", "trading", "blockchain"],
+  capabilities: [
+    "market analysis",
+    "arbitrage strategy explanation", 
+    "risk management advice",
+    "DeFi knowledge sharing"
+  ]
+};
+
 // Initialize ElizaOS Core
-async function initializeElizaOS() {
+async function initializeElizaOS(): Promise<boolean> {
   try {
     console.log("🔄 Initializing ElizaOS Core...");
     
-    // Dynamic import for ElizaOS Core
-    const { AgentRuntime, Character, defaultCharacter } = await import("@elizaos/core");
+    // ElizaOSの動的インポートを試行
+    let elizaModule: any;
+    try {
+      elizaModule = await import("@elizaos/core");
+    } catch (importError) {
+      console.log("⚠️ @elizaos/core import failed, trying alternative paths...");
+      
+      // 代替パスを試行
+      try {
+        elizaModule = await import("@elizaos/core/dist");
+      } catch (altError) {
+        throw new Error("ElizaOS core module not found");
+      }
+    }
+
+    // 利用可能なエクスポートを確認
+    console.log("📦 Available exports:", Object.keys(elizaModule));
     
+    const { AgentRuntime } = elizaModule;
+    
+    if (!AgentRuntime) {
+      throw new Error("AgentRuntime not found in ElizaOS module");
+    }
+
     // Load character configuration
     let characterConfig: Character;
     try {
@@ -32,17 +86,15 @@ async function initializeElizaOS() {
       console.log("✅ Character configuration loaded:", characterConfig.name);
     } catch (error) {
       console.log("⚠️ Using default character configuration");
-      characterConfig = {
-        ...defaultCharacter,
-        name: "ArbitrageTrader",
-        bio: ["AI-powered arbitrage trading assistant"],
-      };
+      characterConfig = defaultCharacter;
     }
 
     // Initialize Agent Runtime
     elizaAgent = new AgentRuntime({
       character: characterConfig,
-      // Add minimal configuration for now
+      // 基本設定を追加
+      databaseAdapter: null, // 必要に応じて設定
+      token: process.env.ELIZA_TOKEN || "default-token",
     });
 
     isElizaAvailable = true;
@@ -52,14 +104,14 @@ async function initializeElizaOS() {
     return true;
   } catch (error) {
     console.log("⚠️ ElizaOS Core initialization failed, running in basic mode");
-    console.log("Error details:", error.message);
+    console.log("Error details:", error instanceof Error ? error.message : String(error));
     isElizaAvailable = false;
     return false;
   }
 }
 
 // Chat handler
-async function handleChat(message: string, userId: string = "user") {
+async function handleChat(message: string, userId: string = "user"): Promise<ChatResponse> {
   if (!isElizaAvailable || !elizaAgent) {
     return {
       response: "AI機能は現在利用できません。基本モードで動作中です。",
@@ -68,7 +120,7 @@ async function handleChat(message: string, userId: string = "user") {
   }
 
   try {
-    // Simple response for now (will be enhanced)
+    // メッセージ処理
     const response = await elizaAgent.processMessage({
       content: { text: message },
       userId: userId,
@@ -84,10 +136,36 @@ async function handleChat(message: string, userId: string = "user") {
     console.error("Chat processing error:", error);
     return {
       response: "処理中にエラーが発生しました。",
-      error: error.message,
+      error: error instanceof Error ? error.message : String(error),
       timestamp: new Date().toISOString()
     };
   }
+}
+
+// Basic fallback chat handler (ElizaOS利用不可時)
+function handleBasicChat(message: string): ChatResponse {
+  const responses = {
+    "こんにちは": "こんにちは！アービトラージトレーダーです。",
+    "アービトラージとは": "アービトラージとは、異なる市場間の価格差を利用して利益を得る取引戦略です。",
+    "リスクは": "主なリスクには、ガス代、スリッページ、流動性リスク、スマートコントラクトリスクがあります。",
+    "default": "申し訳ございませんが、現在基本モードで動作中です。より詳細な回答には ElizaOS の統合が必要です。"
+  };
+
+  const lowerMessage = message.toLowerCase();
+  let response = responses.default;
+
+  for (const [key, value] of Object.entries(responses)) {
+    if (key !== "default" && lowerMessage.includes(key)) {
+      response = value;
+      break;
+    }
+  }
+
+  return {
+    response,
+    timestamp: new Date().toISOString(),
+    agent: "ArbitrageTrader (Basic Mode)"
+  };
 }
 
 // HTTP Server with Enhanced API
@@ -117,7 +195,8 @@ const server = createServer(async (req, res) => {
       uptime: process.uptime(),
       elizaos: isElizaAvailable ? "available" : "unavailable",
       features: {
-        chat: isElizaAvailable,
+        chat: true, // 基本チャットは常に利用可能
+        advanced_chat: isElizaAvailable,
         arbitrage: false, // Phase 3
         monitoring: true
       }
@@ -152,7 +231,10 @@ const server = createServer(async (req, res) => {
             return;
           }
 
-          const chatResponse = await handleChat(message, userId);
+          // ElizaOSが利用可能な場合は高度なチャット、そうでなければ基本チャット
+          const chatResponse = isElizaAvailable 
+            ? await handleChat(message, userId)
+            : handleBasicChat(message);
           
           res.writeHead(200, { "Content-Type": "application/json" });
           res.end(JSON.stringify(chatResponse));
@@ -170,7 +252,7 @@ const server = createServer(async (req, res) => {
     res.writeHead(200, { "Content-Type": "application/json" });
     res.end(JSON.stringify({
       agent: "ArbitrageTrader",
-      status: isElizaAvailable ? "online" : "offline",
+      status: isElizaAvailable ? "online" : "basic-mode",
       capabilities: [
         "市場分析相談",
         "アービトラージ戦略説明",
@@ -182,7 +264,8 @@ const server = createServer(async (req, res) => {
         "アービトラージについて説明して",
         "ガス代を節約する方法は？",
         "おすすめの取引戦略は？"
-      ]
+      ],
+      note: isElizaAvailable ? "Full AI capabilities available" : "Running in basic mode - limited responses"
     }));
   }
   else {
@@ -196,7 +279,7 @@ const server = createServer(async (req, res) => {
 });
 
 // Application startup
-async function start() {
+async function start(): Promise<void> {
   console.log("🚀 Starting ElizaOS Arbitrage Bot...");
   
   // Initialize ElizaOS Core
@@ -209,6 +292,10 @@ async function start() {
     console.log(`💬 Chat API: http://localhost:${port}/chat`);
     console.log(`🤖 Agent info: http://localhost:${port}/agent`);
     console.log("✅ Phase 2 setup completed successfully");
+    
+    if (!isElizaAvailable) {
+      console.log("⚠️ Running in basic mode - some features may be limited");
+    }
   });
 }
 
