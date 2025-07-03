@@ -12,14 +12,14 @@
   "plugins": [
     {
       "name": "arbitragePlugin",
-      "path": "@elizaos/plugin-arbitrage", // npmパッケージ名
+      "path": "@elizaos/plugin-arbitrage",
       "config": {
-        "profitThreshold": 0.001, // 例: 利益閾値 (0.1%)
-        "gasLimit": 3000000, // 例: ガスリミット
-        "ethereumWssEndpoint": "YOUR_ETHEREUM_WSS_ENDPOINT", // あなたのWSSエンドポイント
-        "flashbotsRelaySigningKey": "YOUR_FLASHBOTS_SIGNING_KEY", // あなたのFlashbots署名キー
-        "privateKey": "YOUR_WALLET_PRIVATE_KEY", // あなたのウォレットのプライベートキー
-        "dexesToMonitor": ["uniswap_v2", "sushiswap_v2"] // 監視するDEX
+        "profitThreshold": 0.001,
+        "gasLimit": 3000000,
+        "ethereumWssEndpoint": "YOUR_ETHEREUM_WSS_ENDPOINT",
+        "flashbotsRelaySigningKey": "YOUR_FLASHBOTS_SIGNING_KEY",
+        "privateKey": "YOUR_WALLET_PRIVATE_KEY",
+        "dexesToMonitor": ["uniswap_v2", "sushiswap_v2"]
       }
     }
   ],
