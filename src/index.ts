@@ -556,7 +556,64 @@ const server = createServer(async (req, res) => {
           : "Running in limited mode - basic responses only"
       }));
     }
-    else if (req.url === "/chat" && req.method === "POST") {
+    else if (req.url === "/chat") {
+      if (req.method === "GET") {
+        // GET request - show chat endpoint documentation
+        res.writeHead(200, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({
+          endpoint: "/chat",
+          method: "POST",
+          description: "Chat with the ArbitrageTrader AI agent",
+          usage: {
+            url: "https://eliza-arbitrage-bot-production.up.railway.app/chat",
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json"
+            },
+            body_format: {
+              message: "string (required)",
+              userId: "string (optional, defaults to 'user')"
+            }
+          },
+          examples: [
+            {
+              request: {
+                message: "こんにちは",
+                userId: "user123"
+              },
+              description: "Basic greeting"
+            },
+            {
+              request: {
+                message: "アービトラージについて教えて"
+              },
+              description: "Ask about arbitrage strategies"
+            },
+            {
+              request: {
+                message: "現在のBTC価格は？"
+              },
+              description: "Ask about current prices (requires API keys)"
+            }
+          ],
+          curl_examples: [
+            'curl -X POST https://eliza-arbitrage-bot-production.up.railway.app/chat -H "Content-Type: application/json" -d \'{"message":"こんにちは"}\'',
+            'curl -X POST https://eliza-arbitrage-bot-production.up.railway.app/chat -H "Content-Type: application/json" -d \'{"message":"アービトラージのリスクは？"}\''
+          ],
+          agent_capabilities: [
+            "DeFi and arbitrage strategy consultation",
+            "Market analysis and insights", 
+            "Risk management advice",
+            "Gas optimization tips",
+            "Trading strategy recommendations"
+          ],
+          status: {
+            elizaos: serviceStatus.elizaos,
+            ai_enhanced: serviceStatus.ai,
+            available_features: Object.keys(serviceStatus).filter(key => serviceStatus[key] === true)
+          }
+        }));
+      } else if (req.method === "POST") {
       let body = "";
       req.on("data", chunk => body += chunk);
       req.on("end", async () => {
