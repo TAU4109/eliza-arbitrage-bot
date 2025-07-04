@@ -509,6 +509,53 @@ const server = createServer(async (req, res) => {
         }
       }));
     }
+    else if (req.url === "/agent") {
+      res.writeHead(200, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({
+        agent: "ArbitrageTrader",
+        character: elizaAgent ? {
+          name: elizaAgent.character?.name || "ArbitrageTrader",
+          bio: elizaAgent.character?.bio || defaultCharacter.bio,
+          personality: elizaAgent.character?.personality || defaultCharacter.personality,
+          knowledge: elizaAgent.character?.knowledge || defaultCharacter.knowledge
+        } : defaultCharacter,
+        status: serviceStatus.elizaos === 'available' ? "online" : "limited",
+        capabilities: [
+          "市場分析相談",
+          "アービトラージ戦略説明", 
+          "DeFi知識共有",
+          "リスク管理アドバイス",
+          "ガス最適化のコツ",
+          "取引戦略の提案"
+        ],
+        example_queries: [
+          "現在の市場状況を教えて",
+          "アービトラージについて説明して",
+          "ガス代を節約する方法は？",
+          "おすすめの取引戦略は？",
+          "DeFiのリスクについて教えて",
+          "Uniswap vs SushiSwap の違いは？"
+        ],
+        features: {
+          elizaos_integration: serviceStatus.elizaos === 'available',
+          ai_enhanced: serviceStatus.ai,
+          blockchain_data: serviceStatus.blockchain,
+          price_feeds: serviceStatus.priceFeeds,
+          real_time_response: true,
+          context_awareness: serviceStatus.elizaos === 'available'
+        },
+        api_endpoints: {
+          chat: "/chat",
+          health: "/health", 
+          elizaos_status: "/elizaos",
+          prices: "/prices",
+          gas_info: "/gas"
+        },
+        note: serviceStatus.elizaos === 'available' 
+          ? "ElizaOS fully integrated - AI capabilities available" 
+          : "Running in limited mode - basic responses only"
+      }));
+    }
     else if (req.url === "/chat" && req.method === "POST") {
       let body = "";
       req.on("data", chunk => body += chunk);
@@ -536,7 +583,7 @@ const server = createServer(async (req, res) => {
       res.writeHead(404, { "Content-Type": "application/json" });
       res.end(JSON.stringify({
         error: "Not Found",
-        available_endpoints: ["/", "/health", "/chat", "/elizaos"]
+        available_endpoints: ["/", "/health", "/chat", "/elizaos", "/agent"]
       }));
     }
   } catch (error) {
