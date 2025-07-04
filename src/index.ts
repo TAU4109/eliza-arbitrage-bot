@@ -1,4 +1,4 @@
-// ElizaOS Arbitrage Bot - Debug Fixed Version
+// ElizaOS Arbitrage Bot - Syntax Error Hotfix
 import dotenv from "dotenv";
 import { createServer } from "http";
 import { readFile } from "fs/promises";
@@ -12,20 +12,19 @@ const PORT = parseInt(process.env.PORT || "3000", 10);
 const RAILWAY_ENVIRONMENT = process.env.RAILWAY_ENVIRONMENT;
 const RAILWAY_SERVICE_NAME = process.env.RAILWAY_SERVICE_NAME;
 
-console.log("🚀 ElizaOS Arbitrage Bot Starting (Debug Fixed)...");
+console.log("🚀 ElizaOS Arbitrage Bot Starting (Syntax Fixed)...");
 console.log("🌍 Environment:", process.env.NODE_ENV || "development");
 console.log("🚂 Railway Environment:", RAILWAY_ENVIRONMENT || "local");
 console.log("📦 Service:", RAILWAY_SERVICE_NAME || "local");
 console.log("🔌 Port:", PORT);
 
-// エラーハンドリングの強化
+// エラーハンドリング
 process.on('uncaughtException', (error) => {
   console.error('❌ Uncaught Exception:', error);
-  console.error('Stack:', error.stack);
 });
 
 process.on('unhandledRejection', (reason, promise) => {
-  console.error('❌ Unhandled Rejection at:', promise, 'reason:', reason);
+  console.error('❌ Unhandled Rejection:', reason);
 });
 
 // 型定義
@@ -102,41 +101,45 @@ const defaultCharacter: Character = {
 // HTTP request helper
 function makeHttpRequest(options: any, data?: string): Promise<any> {
   return new Promise((resolve, reject) => {
-    const req = https.request(options, (res) => {
-      let responseData = '';
-      
-      res.on('data', (chunk) => {
-        responseData += chunk;
+    try {
+      const req = https.request(options, (res) => {
+        let responseData = '';
+        
+        res.on('data', (chunk) => {
+          responseData += chunk;
+        });
+        
+        res.on('end', () => {
+          try {
+            const parsed = JSON.parse(responseData);
+            resolve(parsed);
+          } catch (error) {
+            resolve(responseData);
+          }
+        });
       });
-      
-      res.on('end', () => {
-        try {
-          const parsed = JSON.parse(responseData);
-          resolve(parsed);
-        } catch (error) {
-          resolve(responseData);
-        }
-      });
-    });
 
-    req.on('error', (error) => {
-      console.error('HTTP Request Error:', error);
+      req.on('error', (error) => {
+        console.error('HTTP Request Error:', error);
+        reject(error);
+      });
+
+      req.setTimeout(15000, () => {
+        req.destroy();
+        reject(new Error('Request timeout'));
+      });
+
+      if (data) {
+        req.write(data);
+      }
+      req.end();
+    } catch (error) {
       reject(error);
-    });
-
-    req.setTimeout(15000, () => {
-      req.destroy();
-      reject(new Error('Request timeout'));
-    });
-
-    if (data) {
-      req.write(data);
     }
-    req.end();
   });
 }
 
-// ElizaOS 初期化（簡略化＋エラーハンドリング強化）
+// ElizaOS 初期化
 async function initializeElizaOS(): Promise<boolean> {
   try {
     console.log("🔄 Starting ElizaOS initialization...");
@@ -147,9 +150,8 @@ async function initializeElizaOS(): Promise<boolean> {
       elizaModule = await import("@elizaos/core");
       console.log("✅ ElizaOS module imported successfully");
       
-      // 利用可能なエクスポートをログ出力
       const exports = Object.keys(elizaModule);
-      console.log(`📦 ElizaOS exports (${exports.length}):`, exports.slice(0, 10), exports.length > 10 ? '...' : '');
+      console.log(`📦 ElizaOS exports (${exports.length}):`, exports.slice(0, 10));
       
     } catch (importError) {
       console.log("⚠️ ElizaOS import failed:", importError);
@@ -178,7 +180,7 @@ async function initializeElizaOS(): Promise<boolean> {
       characterConfig = defaultCharacter;
     }
 
-    // AgentRuntime インスタンス作成（最小限の設定）
+    // AgentRuntime インスタンス作成
     try {
       console.log("🔧 Creating AgentRuntime instance...");
       
@@ -191,14 +193,13 @@ async function initializeElizaOS(): Promise<boolean> {
 
       console.log("✅ AgentRuntime instance created successfully");
       
-      // 利用可能なメソッドを取得（安全に）
+      // 利用可能なメソッドを取得
       try {
         elizaAvailableMethods = Object.getOwnPropertyNames(Object.getPrototypeOf(elizaAgent))
           .filter(name => typeof elizaAgent[name] === 'function' && name !== 'constructor');
         
         console.log(`📋 Available methods (${elizaAvailableMethods.length}):`, elizaAvailableMethods.slice(0, 10));
         
-        // 特に興味のあるメソッドをチェック
         const importantMethods = ['processMessage', 'handleMessage', 'composeState', 'processAction', 'evaluate'];
         const foundMethods = importantMethods.filter(method => elizaAvailableMethods.includes(method));
         console.log("🎯 Important methods found:", foundMethods);
@@ -408,7 +409,7 @@ ${context ? `追加情報: ${context}` : ''}`;
   }
 }
 
-// 簡略化されたサービス
+// サービス
 const aiService = new AIChatService();
 
 // サービス初期化
@@ -454,7 +455,7 @@ async function handleChat(message: string, userId: string = "user") {
   }
 }
 
-// HTTP Server（簡略化）
+// HTTP Server
 const server = createServer(async (req, res) => {
   // CORS headers
   res.setHeader("Access-Control-Allow-Origin", "*");
@@ -473,7 +474,7 @@ const server = createServer(async (req, res) => {
       res.end(JSON.stringify({
         status: "healthy",
         service: "eliza-arbitrage-bot",
-        version: "1.6.0-debug-fixed",
+        version: "1.7.0-syntax-fixed",
         timestamp: new Date().toISOString(),
         uptime: process.uptime(),
         environment: {
@@ -610,31 +611,40 @@ const server = createServer(async (req, res) => {
           status: {
             elizaos: serviceStatus.elizaos,
             ai_enhanced: serviceStatus.ai,
-            available_features: Object.keys(serviceStatus).filter(key => serviceStatus[key] === true)
+            available_features: Object.keys(serviceStatus).filter(key => serviceStatus[key as keyof ServiceStatus] === true)
           }
         }));
       } else if (req.method === "POST") {
-      let body = "";
-      req.on("data", chunk => body += chunk);
-      req.on("end", async () => {
-        try {
-          const { message, userId } = JSON.parse(body);
-          
-          if (!message) {
-            res.writeHead(400, { "Content-Type": "application/json" });
-            res.end(JSON.stringify({ error: "Message is required" }));
-            return;
-          }
+        // POST request - handle chat message
+        let body = "";
+        req.on("data", chunk => body += chunk);
+        req.on("end", async () => {
+          try {
+            const { message, userId } = JSON.parse(body);
+            
+            if (!message) {
+              res.writeHead(400, { "Content-Type": "application/json" });
+              res.end(JSON.stringify({ error: "Message is required" }));
+              return;
+            }
 
-          const chatResponse = await handleChat(message, userId);
-          
-          res.writeHead(200, { "Content-Type": "application/json" });
-          res.end(JSON.stringify(chatResponse));
-        } catch (parseError) {
-          res.writeHead(400, { "Content-Type": "application/json" });
-          res.end(JSON.stringify({ error: "Invalid JSON" }));
-        }
-      });
+            const chatResponse = await handleChat(message, userId);
+            
+            res.writeHead(200, { "Content-Type": "application/json" });
+            res.end(JSON.stringify(chatResponse));
+          } catch (parseError) {
+            res.writeHead(400, { "Content-Type": "application/json" });
+            res.end(JSON.stringify({ error: "Invalid JSON" }));
+          }
+        });
+      } else {
+        res.writeHead(405, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ 
+          error: "Method Not Allowed", 
+          allowed_methods: ["GET", "POST"],
+          message: "Use GET for documentation, POST for chat"
+        }));
+      }
     }
     else {
       res.writeHead(404, { "Content-Type": "application/json" });
