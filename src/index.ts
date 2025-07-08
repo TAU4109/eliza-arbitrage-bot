@@ -80,6 +80,9 @@ const config = {
   TRADE_AMOUNT: parseFloat(process.env.TRADE_AMOUNT || "1000"),
 };
 
+// Type for config
+type ConfigType = typeof config;
+
 // Global state
 let serviceStatus: ServiceStatus = {
   elizaos: 'unavailable',
@@ -143,7 +146,7 @@ function makeHttpRequest(url: string): Promise<any> {
 
 // Arbitrage Data Collector
 class ArbitrageDataCollector {
-  constructor(private config: typeof config) {}
+  constructor(private config: ConfigType) {}
 
   async collectPriceData(tokens: string[]): Promise<PriceData[]> {
     const priceData: PriceData[] = [];
