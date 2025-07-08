@@ -44,6 +44,14 @@ interface ArbitrageOpportunity {
   timestamp: number;
 }
 
+// ===== 新しく追加: ValidationResult インターフェース =====
+interface ValidationResult {
+  isValid: boolean;
+  reason: string;
+  score: number;
+  recommendation: 'ACCEPT' | 'CAUTION' | 'REJECT';
+}
+
 interface Memory {
   userId: string;
   roomId: string;
@@ -78,6 +86,12 @@ const config = {
   MIN_PROFIT_THRESHOLD: parseFloat(process.env.MIN_PROFIT_THRESHOLD || "0.5"),
   MAX_GAS_PRICE: parseFloat(process.env.MAX_GAS_PRICE || "50"),
   TRADE_AMOUNT: parseFloat(process.env.TRADE_AMOUNT || "1000"),
+  // ===== 緊急フィルター設定を追加 =====
+  EMERGENCY_FILTER_ENABLED: process.env.EMERGENCY_FILTER_ENABLED === 'true',
+  MAX_PROFIT_RATE: parseFloat(process.env.MAX_PROFIT_RATE || "50"),
+  STRICT_VALIDATION: process.env.STRICT_VALIDATION === 'true',
+  REJECT_PULSEX: process.env.REJECT_PULSEX === 'true',
+  REJECT_POWSWAP: process.env.REJECT_POWSWAP === 'true'
 };
 
 // Type for config
@@ -142,6 +156,277 @@ function makeHttpRequest(url: string): Promise<any> {
       req.end();
     } catch (error) { reject(error); }
   });
+}
+
+// ===== 新しく追加: EmergencyAnomalyFilter クラス =====
+class EmergencyAnomalyFilter {
+  private readonly PRICE_RANGES = {
+    'DAI': { min: 0.90, max: 1.10, type: 'stablecoin' },
+    'USDC': { min: 0.90, max: 1.10, type: 'stablecoin' },
+    'USDT': { min: 0.90, max: 1.10, type: 'stablecoin' },
+    'WBTC': { min: 40000, max: 200000, type: 'bitcoin-pegged' },
+    'ETH': { min: 1500, max: 15000, type: 'major-crypto' },
+    'ETHEREUM': { min: 1500, max: 15000, type: 'major-crypto' },
+    'BITCOIN': { min: 40000, max: 200000, type: 'bitcoin-pegged' }
+  };
+
+  private readonly UNRELIABLE_SOURCES = [
+    'pulsex', 'pulseX', 'powswap', 'unknown_dex', 'unknown'
+  ];
+
+  private readonly MAX_PROFIT_RATE = parseFloat(process.env.MAX_PROFIT_RATE || "50");
+
+  validateOpportunity(opportunity: ArbitrageOpportunity): ValidationResult {
+    const validationResult: ValidationResult = {
+      isValid: false,
+      reason: '',
+      score: 0,
+      recommendation: 'REJECT'
+    };
+
+    // 1. 基本的な数値検証
+    if (!this.isValidNumber(opportunity.buyPrice) || !this.isValidNumber(opportunity.sellPrice)) {
+      validationResult.reason = 'Invalid price data';
+      return validationResult;
+    }
+
+    // 2. 価格範囲検証
+    const priceValidation = this.validatePriceRange(opportunity.token, opportunity.buyPrice, opportunity.sellPrice);
+    if (!priceValidation.valid) {
+      validationResult.reason = `Price out of range: ${priceValidation.reason}`;
+      return validationResult;
+    }
+
+    // 3. 利益率検証
+    if (opportunity.profitPercentage > this.MAX_PROFIT_RATE) {
+      validationResult.reason = `Excessive profit rate: ${opportunity.profitPercentage.toFixed(2)}% (max: ${this.MAX_PROFIT_RATE}%)`;
+      return validationResult;
+    }
+
+    // 4. ソース信頼性検証
+    const sourceValidation = this.validateSources(opportunity.buyExchange, opportunity.sellExchange);
+    if (!sourceValidation.valid) {
+      validationResult.reason = `Unreliable source: ${sourceValidation.reason}`;
+      return validationResult;
+    }
+
+    // 5. ステーブルコイン特別検証
+    if (this.isStablecoin(opportunity.token)) {
+      const stableValidation = this.validateStablecoin(opportunity);
+      if (!stableValidation.valid) {
+        validationResult.reason = `Stablecoin anomaly: ${stableValidation.reason}`;
+        return validationResult;
+      }
+    }
+
+    // 6. 最終スコア計算
+    validationResult.score = this.calculateScore(opportunity);
+    
+    if (validationResult.score >= 70) {
+      validationResult.isValid = true;
+      validationResult.recommendation = 'ACCEPT';
+      validationResult.reason = 'Passed all validation checks';
+    } else if (validationResult.score >= 40) {
+      validationResult.isValid = false;
+      validationResult.recommendation = 'CAUTION';
+      validationResult.reason = 'Moderate confidence, requires manual review';
+    } else {
+      validationResult.recommendation = 'REJECT';
+      validationResult.reason = 'Low confidence score';
+    }
+
+    return validationResult;
+  }
+
+  private validatePriceRange(token: string, buyPrice: number, sellPrice: number): { valid: boolean; reason: string } {
+    const range = this.PRICE_RANGES[token.toUpperCase()];
+    
+    if (!range) {
+      return { valid: true, reason: 'Unknown token, skipping range check' };
+    }
+
+    if (buyPrice < range.min || buyPrice > range.max) {
+      return { 
+        valid: false, 
+        reason: `Buy price $${buyPrice} outside range $${range.min}-$${range.max}` 
+      };
+    }
+
+    if (sellPrice < range.min || sellPrice > range.max) {
+      return { 
+        valid: false, 
+        reason: `Sell price $${sellPrice} outside range $${range.min}-$${range.max}` 
+      };
+    }
+
+    return { valid: true, reason: 'Price range OK' };
+  }
+
+  private validateSources(buySource: string, sellSource: string): { valid: boolean; reason: string } {
+    const normalizedBuySource = buySource.toLowerCase();
+    const normalizedSellSource = sellSource.toLowerCase();
+
+    if (this.UNRELIABLE_SOURCES.some(source => normalizedBuySource.includes(source))) {
+      return { 
+        valid: false, 
+        reason: `Unreliable buy source: ${buySource}` 
+      };
+    }
+
+    if (this.UNRELIABLE_SOURCES.some(source => normalizedSellSource.includes(source))) {
+      return { 
+        valid: false, 
+        reason: `Unreliable sell source: ${sellSource}` 
+      };
+    }
+
+    if (normalizedBuySource === normalizedSellSource) {
+      return { 
+        valid: false, 
+        reason: 'Same source for buy and sell' 
+      };
+    }
+
+    return { valid: true, reason: 'Sources OK' };
+  }
+
+  private validateStablecoin(opportunity: ArbitrageOpportunity): { valid: boolean; reason: string } {
+    const token = opportunity.token.toUpperCase();
+    
+    if (!this.isStablecoin(token)) {
+      return { valid: true, reason: 'Not a stablecoin' };
+    }
+
+    const expectedPrice = 1.0;
+    const maxDeviation = 0.05; // 5%
+
+    const buyDeviation = Math.abs(opportunity.buyPrice - expectedPrice) / expectedPrice;
+    const sellDeviation = Math.abs(opportunity.sellPrice - expectedPrice) / expectedPrice;
+
+    if (buyDeviation > maxDeviation) {
+      return { 
+        valid: false, 
+        reason: `Buy price deviation ${(buyDeviation * 100).toFixed(2)}% exceeds ${maxDeviation * 100}%` 
+      };
+    }
+
+    if (sellDeviation > maxDeviation) {
+      return { 
+        valid: false, 
+        reason: `Sell price deviation ${(sellDeviation * 100).toFixed(2)}% exceeds ${maxDeviation * 100}%` 
+      };
+    }
+
+    return { valid: true, reason: 'Stablecoin prices within acceptable range' };
+  }
+
+  private calculateScore(opportunity: ArbitrageOpportunity): number {
+    let score = 0;
+
+    // 利益率スコア（適度な利益率を評価）
+    if (opportunity.profitPercentage >= 1 && opportunity.profitPercentage <= 10) {
+      score += 40; // 1-10%は理想的
+    } else if (opportunity.profitPercentage > 10 && opportunity.profitPercentage <= 25) {
+      score += 20; // 10-25%は可能性あり
+    } else if (opportunity.profitPercentage > 25) {
+      score -= 20; // 25%超は疑わしい
+    }
+
+    // ソース信頼性スコア
+    const sourceReliability = this.getSourceReliability(opportunity.buyExchange) + 
+                            this.getSourceReliability(opportunity.sellExchange);
+    score += sourceReliability;
+
+    // 価格妥当性スコア
+    const range = this.PRICE_RANGES[opportunity.token.toUpperCase()];
+    if (range) {
+      const midpoint = (range.min + range.max) / 2;
+      const buyDistance = Math.abs(opportunity.buyPrice - midpoint) / midpoint;
+      const sellDistance = Math.abs(opportunity.sellPrice - midpoint) / midpoint;
+      
+      if (buyDistance < 0.1 && sellDistance < 0.1) {
+        score += 30; // 価格が妥当な範囲内
+      }
+    }
+
+    return Math.max(0, Math.min(100, score));
+  }
+
+  private isValidNumber(value: number): boolean {
+    return typeof value === 'number' && !isNaN(value) && value > 0 && isFinite(value);
+  }
+
+  private isStablecoin(token: string): boolean {
+    const stablecoins = ['DAI', 'USDC', 'USDT', 'BUSD', 'FRAX'];
+    return stablecoins.includes(token.toUpperCase());
+  }
+
+  private getSourceReliability(source: string): number {
+    const reliability: { [key: string]: number } = {
+      'coingecko': 15,
+      'coingecko_average': 15,
+      'binance': 12,
+      'coinbase': 12,
+      'uniswap': 10,
+      'uniswap_v3': 10,
+      'sushiswap': 8,
+      'curve': 8,
+      'pulsex': 0,
+      'powswap': 0
+    };
+
+    return reliability[source.toLowerCase()] || 5;
+  }
+
+  // 複数の機会をフィルタリング
+  filterOpportunities(opportunities: ArbitrageOpportunity[]): {
+    accepted: ArbitrageOpportunity[];
+    rejected: ArbitrageOpportunity[];
+    summary: {
+      total: number;
+      accepted: number;
+      rejected: number;
+      filterEfficiency: string;
+    };
+  } {
+    const accepted: ArbitrageOpportunity[] = [];
+    const rejected: ArbitrageOpportunity[] = [];
+
+    console.log(`🔍 Filtering ${opportunities.length} raw opportunities...`);
+
+    for (const opportunity of opportunities) {
+      const validation = this.validateOpportunity(opportunity);
+      
+      if (validation.isValid) {
+        accepted.push({
+          ...opportunity,
+          // バリデーション情報を追加
+          confidence: this.mapScoreToConfidence(validation.score)
+        });
+        console.log(`✅ ACCEPTED: ${opportunity.token} - ${validation.reason}`);
+      } else {
+        rejected.push(opportunity);
+        console.log(`❌ REJECTED: ${opportunity.token} - ${validation.reason}`);
+      }
+    }
+
+    const summary = {
+      total: opportunities.length,
+      accepted: accepted.length,
+      rejected: rejected.length,
+      filterEfficiency: ((rejected.length / opportunities.length) * 100).toFixed(1)
+    };
+
+    console.log(`📊 Filter Results: ${accepted.length} accepted, ${rejected.length} rejected (${summary.filterEfficiency}% filtered out)`);
+
+    return { accepted: accepted.sort((a, b) => b.netProfit - a.netProfit), rejected, summary };
+  }
+
+  private mapScoreToConfidence(score: number): 'low' | 'medium' | 'high' {
+    if (score >= 70) return 'high';
+    if (score >= 40) return 'medium';
+    return 'low';
+  }
 }
 
 // Arbitrage Data Collector
@@ -240,6 +525,7 @@ class ArbitrageDataCollector {
     }
   }
 
+  // ===== 修正された analyzeArbitrageOpportunities メソッド =====
   analyzeArbitrageOpportunities(priceData: PriceData[]): ArbitrageOpportunity[] {
     const opportunities: ArbitrageOpportunity[] = [];
     const tokenGroups: { [key: string]: PriceData[] } = {};
@@ -286,7 +572,19 @@ class ArbitrageDataCollector {
       }
     }
 
-    return opportunities.sort((a, b) => b.netProfit - a.netProfit);
+    // ===== 緊急フィルターを適用 =====
+    const filter = new EmergencyAnomalyFilter();
+    const filteredResults = filter.filterOpportunities(opportunities);
+
+    // フィルタリング結果をログに出力
+    console.log(`🛡️ Emergency Filter Applied:`);
+    console.log(`📊 Original opportunities: ${opportunities.length}`);
+    console.log(`✅ Accepted: ${filteredResults.accepted.length}`);
+    console.log(`❌ Rejected: ${filteredResults.rejected.length}`);
+    console.log(`🔍 Filter efficiency: ${filteredResults.summary.filterEfficiency}%`);
+
+    // 承認された機会のみ返す
+    return filteredResults.accepted;
   }
 
   private estimateGasCost(): number {
@@ -507,7 +805,7 @@ ${context ? `現在のデータ: ${context}` : ''}`;
       currentOpportunities.slice(0, 5).forEach((opp, i) => {
         response += `${i + 1}. ${opp.token}\n`;
         response += `   📊 ${opp.buyExchange} → ${opp.sellExchange}\n`;
-        response += `   💰 利益: $${opp.netProfit.toFixed(2)} (${opp.profitPercentage.toFixed(2)}%)\n`;
+        response += `   💰 利益: ${opp.netProfit.toFixed(2)} (${opp.profitPercentage.toFixed(2)}%)\n`;
         response += `   🎯 信頼度: ${opp.confidence.toUpperCase()}\n\n`;
       });
       return response;
@@ -589,7 +887,7 @@ async function startMonitoringLoop() {
         
         if (opportunities.length > 0) {
           opportunities.slice(0, 3).forEach((opp, index) => {
-            console.log(`${index + 1}. ${opp.token}: ${opp.buyExchange}($${opp.buyPrice.toFixed(4)}) → ${opp.sellExchange}($${opp.sellPrice.toFixed(4)}) | Profit: ${opp.profitPercentage.toFixed(2)}% | Confidence: ${opp.confidence}`);
+            console.log(`${index + 1}. ${opp.token}: ${opp.buyExchange}(${opp.buyPrice.toFixed(4)}) → ${opp.sellExchange}(${opp.sellPrice.toFixed(4)}) | Profit: ${opp.profitPercentage.toFixed(2)}% | Confidence: ${opp.confidence}`);
           });
 
           const highConfidenceOpps = opportunities.filter(o => o.confidence === 'high');
@@ -1104,6 +1402,59 @@ const server = createServer(async (req, res) => {
         }
       }));
     }
+    // ===== 新しく追加: テストフィルターエンドポイント =====
+    else if (req.url === "/test-filter") {
+      res.writeHead(200, { "Content-Type": "application/json" });
+      
+      // 現在の異常ケースをテスト
+      const testCases: ArbitrageOpportunity[] = [
+        {
+          token: 'DAI',
+          buyExchange: 'pulsex',
+          sellExchange: 'coingecko_average',
+          buyPrice: 0.0052,
+          sellPrice: 1.0000,
+          priceDifference: 0.9948,
+          potentialProfit: 19100,
+          estimatedGasCost: 50,
+          netProfit: 19050,
+          profitPercentage: 19008.64,
+          confidence: 'high' as 'high',
+          timestamp: Date.now()
+        },
+        {
+          token: 'WBTC',
+          buyExchange: 'powswap',
+          sellExchange: 'sushiswap',
+          buyPrice: 0.5575,
+          sellPrice: 1.9300,
+          priceDifference: 1.3725,
+          potentialProfit: 2463,
+          estimatedGasCost: 50,
+          netProfit: 2413,
+          profitPercentage: 246.19,
+          confidence: 'medium' as 'medium',
+          timestamp: Date.now()
+        }
+      ];
+      
+      const filter = new EmergencyAnomalyFilter();
+      const results = filter.filterOpportunities(testCases);
+      
+      res.end(JSON.stringify({
+        testResults: results,
+        expectedResult: 'Both opportunities should be rejected',
+        passed: results.rejected.length === 2,
+        message: results.rejected.length === 2 ? 
+          '✅ Filter working correctly - all anomalies rejected' : 
+          '❌ Filter failed - some anomalies passed through',
+        filterStatus: {
+          emergencyFilterEnabled: config.EMERGENCY_FILTER_ENABLED,
+          maxProfitRate: config.MAX_PROFIT_RATE,
+          strictValidation: config.STRICT_VALIDATION
+        }
+      }));
+    }
     else if (req.url === "/config") {
       res.writeHead(200, { "Content-Type": "application/json" });
       res.end(JSON.stringify({
@@ -1116,6 +1467,13 @@ const server = createServer(async (req, res) => {
           MIN_PROFIT_THRESHOLD: config.MIN_PROFIT_THRESHOLD + "%",
           MAX_GAS_PRICE: config.MAX_GAS_PRICE + " Gwei",
           TRADE_AMOUNT: "$" + config.TRADE_AMOUNT
+        },
+        emergency_filter_config: {
+          EMERGENCY_FILTER_ENABLED: config.EMERGENCY_FILTER_ENABLED,
+          MAX_PROFIT_RATE: config.MAX_PROFIT_RATE + "%",
+          STRICT_VALIDATION: config.STRICT_VALIDATION,
+          REJECT_PULSEX: config.REJECT_PULSEX,
+          REJECT_POWSWAP: config.REJECT_POWSWAP
         },
         services: serviceStatus
       }));
@@ -1136,7 +1494,8 @@ const server = createServer(async (req, res) => {
             monitoring_active: monitoringActive,
             opportunities_available: currentOpportunities.length,
             elizaos_status: serviceStatus.elizaos,
-            price_feeds: serviceStatus.priceFeeds
+            price_feeds: serviceStatus.priceFeeds,
+            emergency_filter_active: config.EMERGENCY_FILTER_ENABLED
           }
         }));
       } else if (req.method === "POST") {
@@ -1165,8 +1524,9 @@ const server = createServer(async (req, res) => {
       res.writeHead(404, { "Content-Type": "application/json" });
       res.end(JSON.stringify({
         error: "Not Found",
-        available_endpoints: ["/", "/dashboard", "/health", "/chat", "/arbitrage", "/opportunities", "/config"],
-        web_interface: "Access dashboard at /"
+        available_endpoints: ["/", "/dashboard", "/health", "/chat", "/arbitrage", "/opportunities", "/config", "/test-filter"],
+        web_interface: "Access dashboard at /",
+        test_filter: "Test emergency filter at /test-filter"
       }));
     }
   } catch (error) {
@@ -1205,6 +1565,7 @@ async function start() {
       console.log(`🌐 Server running on port ${PORT}`);
       console.log(`🎛️ Dashboard: https://${RAILWAY_SERVICE_NAME || 'localhost'}/`);
       console.log(`📊 API: https://${RAILWAY_SERVICE_NAME || 'localhost'}/health`);
+      console.log(`🧪 Test Filter: https://${RAILWAY_SERVICE_NAME || 'localhost'}/test-filter`);
       console.log("✅ Complete arbitrage system ready!");
       
       if (serviceStatus.elizaos === 'available') {
@@ -1216,6 +1577,11 @@ async function start() {
       } else {
         console.log("⚠️ Add COINGECKO_API_KEY for full functionality");
       }
+
+      // 緊急フィルターの状態をログ出力
+      console.log(`🛡️ Emergency Filter: ${config.EMERGENCY_FILTER_ENABLED ? 'ENABLED' : 'DISABLED'}`);
+      console.log(`📊 Max Profit Rate: ${config.MAX_PROFIT_RATE}%`);
+      console.log(`🔍 Strict Validation: ${config.STRICT_VALIDATION ? 'ON' : 'OFF'}`);
     });
   } catch (error) {
     console.error("❌ Startup failed:", error);
