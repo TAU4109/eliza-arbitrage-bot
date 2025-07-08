@@ -1,232 +1,3 @@
-// === Enhanced Results Analysis ===
-        console.log(`🎯 Enhanced arbitrage analysis (${analysisTime}ms):`);
-        console.log(`   💰 Total opportunities: ${opportunities.length}`);
-        
-        if (opportunities.length > 0) {
-          // Confidence breakdown
-          const highConf = opportunities.filter(o => o.confidence === 'high');
-          const mediumConf = opportunities.filter(o => o.confidence === 'medium');
-          const lowConf = opportunities.filter(o => o.confidence === 'low');
-          
-          console.log(`   🔴 High confidence: ${highConf.length} opportunities`);
-          console.log(`   🟡 Medium confidence: ${mediumConf.length} opportunities`);
-          console.log(`   🟢 Low confidence: ${lowConf.length} opportunities`);
-
-          // Token breakdown
-          const tokenBreakdown = {};
-          opportunities.forEach(opp => {
-            if (!tokenBreakdown[opp.token]) tokenBreakdown[opp.token] = 0;
-            tokenBreakdown[opp.token]++;
-          });
-
-          console.log(`   📊 Token breakdown:`);
-          Object.entries(tokenBreakdown)
-            .sort(([,a], [,b]) => (b as number) - (a as number))
-            .slice(0, 5)
-            .forEach(([token, count]) => {
-              console.log(`      ${token}: ${count} opportunities`);
-            });
-
-          // Profit distribution
-          const highProfit = opportunities.filter(o => o.profitPercentage > 10);
-          const mediumProfit = opportunities.filter(o => o.profitPercentage > 5 && o.profitPercentage <= 10);
-          const lowProfit = opportunities.filter(o => o.profitPercentage > 1 && o.profitPercentage <= 5);
-
-          console.log(`   💹 Profit distribution:`);
-          console.log(`      >10%: ${highProfit.length} opportunities`);
-          console.log(`      5-10%: ${mediumProfit.length} opportunities`);
-          console.log(`      1-5%: ${lowProfit.length} opportunities`);
-
-          // Top 5 opportunities
-          console.log(`   🏆 Top 5 opportunities:`);
-          opportunities.slice(0, 5).forEach((opp, index) => {
-            const profit = opp.profitPercentage.toFixed(2);
-            const netProfit = opp.netProfit.toFixed(2);
-            console.log(`      ${index + 1}. ${opp.token}: ${profit}% profit (${netProfit}) | ${opp.buyExchange} → ${opp.sellExchange} | ${opp.confidence}`);
-          });
-
-          // Exceptional opportunities alert
-          const exceptionalOpportunities = opportunities.filter(o => 
-            o.profitPercentage > 5 && 
-            o.confidence !== 'low' && 
-            o.netProfit > 100
-          );
-
-          if (exceptionalOpportunities.length > 0) {
-            console.log(`🚨 EXCEPTIONAL OPPORTUNITIES DETECTED: ${exceptionalOpportunities.length}`);
-            exceptionalOpportunities.forEach(opp => {
-              console.log(`   💎 ${opp.token}: ${opp.profitPercentage.toFixed(2)}% (${opp.netProfit.toFixed(2)}) | ${opp.confidence} confidence`);
-            });
-          }
-
-          // New token opportunities
-          const newTokenOpportunities = opportunities.filter(o => 
-            !['ETH', 'BTC', 'USDC', 'DAI', 'USDT'].includes(o.token)
-          );
-
-          if (newTokenOpportunities.length > 0) {
-            console.log(`🆕 NEW TOKEN OPPORTUNITIES: ${newTokenOpportunities.length}`);
-            const uniqueNewTokens = [...new Set(newTokenOpportunities.map(o => o.token))];
-            console.log(`   📋 Tokens: ${uniqueNewTokens.join(', ')}`);
-          }
-
-          // Token type analysis
-          const typeAnalysis = {};
-          opportunities.forEach(opp => {
-            const range = EnhancedPriceRanges.getPriceRange(opp.token);
-            const type = range?.type || 'unknown';
-            if (!typeAnalysis[type]) typeAnalysis[type] = 0;
-            typeAnalysis[type]++;
-          });
-
-          if (Object.keys(typeAnalysis).length > 1) {
-            console.log(`   🏷️ Type distribution:`);
-            Object.entries(typeAnalysis).forEach(([type, count]) => {
-              console.log(`      ${type}: ${count} opportunities`);
-            });
-          }
-
-        } else {
-          console.log(`   ℹ️  No opportunities found in current market conditions`);
-          console.log(`   💡 Consider adjusting profit thresholds or checking data sources`);
-        }
-
-        // Performance statistics
-        const totalProcessingTime = Date.now() - startTime;
-        console.log(`⚡ Enhanced monitoring performance:`);
-        console.log(`   🕐 Total time: ${totalProcessingTime}ms`);
-        console.log(`   📊 Data collection: ${collectionTime}ms (${((collectionTime/totalProcessingTime)*100).toFixed(1)}%)`);
-        console.log(`   🧮 Analysis: ${analysisTime}ms (${((analysisTime/totalProcessingTime)*100).toFixed(1)}%)`);
-        console.log(`   🎯 Opportunities per second: ${(opportunities.length * 1000 / totalProcessingTime).toFixed(2)}`);
-
-      } else {
-        console.log(`❌ No price data collected - check API connections`);
-      }
-
-    } catch (error) {
-      console.error("❌ Enhanced monitoring error:", error);
-      
-      if (error.message.includes('timeout')) {
-        console.log(`   💡 Suggestion: Increase timeout values or reduce concurrent requests`);
-      } else if (error.message.includes('rate limit')) {
-        console.log(`   💡 Suggestion: Add delays between API calls or get API keys`);
-      } else if (error.message.includes('network')) {
-        console.log(`   💡 Suggestion: Check internet connection and API endpoints`);
-      }
-    }
-  };
-
-  console.log(`🚀 Starting enhanced monitoring loop with ${monitoredTokens.length} tokens...`);
-  await runMonitoring();
-  
-  const intervalId = setInterval(runMonitoring, intervalMs);
-  (global as any).monitoringIntervalId = intervalId;
-  
-  console.log(`✅ Enhanced monitoring loop established (${intervalMs/1000}s intervals)`);
-}
-
-async function toggleArbitrageMonitoring(): Promise<string> {
-  if (!arbitrageCollector) return "❌ アービトラージデータ収集器が初期化されていません";
-
-  if (monitoringActive) {
-    monitoringActive = false;
-    serviceStatus.arbitrageMonitoring = false;
-    return "⏹️ 拡張アービトラージ監視を停止しました";
-  } else {
-    monitoringActive = true;
-    serviceStatus.arbitrageMonitoring = true;
-    startMonitoringLoop();
-    return "▶️ 拡張アービトラージ監視を開始しました (22+ tokens)";
-  }
-}
-
-// Chat Handler
-async function handleChat(message: string, userId: string = "user") {
-  try {
-    const lowerMessage = message.toLowerCase();
-    
-    if (lowerMessage.includes('監視開始') || lowerMessage.includes('start monitoring')) {
-      const result = await toggleArbitrageMonitoring();
-      return {
-        response: result,
-        timestamp: new Date().toISOString(),
-        agent: "EnhancedArbitrageTrader",
-        mode: "Enhanced Command Execution",
-        command: "start_enhanced_monitoring",
-        tokenCount: Object.keys(EnhancedPriceRanges.EXTENDED_PRICE_RANGES).length
-      };
-    }
-
-    if (lowerMessage.includes('監視停止') || lowerMessage.includes('stop monitoring')) {
-      if (monitoringActive) {
-        monitoringActive = false;
-        serviceStatus.arbitrageMonitoring = false;
-        if ((global as any).monitoringIntervalId) {
-          clearInterval((global as any).monitoringIntervalId);
-        }
-        return {
-          response: "⏹️ 拡張アービトラージ監視を停止しました",
-          timestamp: new Date().toISOString(),
-          agent: "EnhancedArbitrageTrader",
-          mode: "Enhanced Command Execution"
-        };
-      } else {
-        return {
-          response: "⚠️ 監視は既に停止しています",
-          timestamp: new Date().toISOString(),
-          agent: "EnhancedArbitrageTrader"
-        };
-      }
-    }
-
-    if (lowerMessage.includes('価格収集') || lowerMessage.includes('collect prices')) {
-      if (!arbitrageCollector) {
-        return {
-          response: "❌ 拡張アービトラージデータ収集器が初期化されていません",
-          timestamp: new Date().toISOString(),
-          agent: "EnhancedArbitrageTrader"
-        };
-      }
-
-      const tokens = ['ethereum', 'bitcoin', 'usd-coin', 'chainlink', 'uniswap', 'polygon'];
-      const priceData = await arbitrageCollector.collectPriceData(tokens);
-      const opportunities = arbitrageCollector.analyzeArbitrageOpportunities(priceData);
-      currentOpportunities = opportunities;
-
-      return {
-        response: `📊 拡張価格データ収集完了\n\n📈 収集データ: ${priceData.length}件\n🎯 検出機会: ${opportunities.length}件\n🪙 対象トークン: ${tokens.length}件\n${opportunities.length > 0 ? `\n上位機会:\n${opportunities.slice(0, 3).map((opp, i) => `${i + 1}. ${opp.token}: ${opp.profitPercentage.toFixed(2)}% (${opp.confidence})`).join('\n')}` : ''}`,
-        timestamp: new Date().toISOString(),
-        agent: "EnhancedArbitrageTrader",
-        mode: "Enhanced Data Collection"
-      };
-    }
-
-    const response = await aiService.generateResponse(message);
-
-    return {
-      response,
-      timestamp: new Date().toISOString(),
-      agent: "EnhancedArbitrageTrader",
-      mode: serviceStatus.elizaos === 'available' ? "Enhanced ElizaOS" : serviceStatus.ai ? "Enhanced AI" : "Enhanced Rule Based",
-      elizaos_status: serviceStatus.elizaos,
-      arbitrage_opportunities: currentOpportunities.length,
-      monitoring_active: monitoringActive,
-      enhanced_features: {
-        total_tokens_supported: Object.keys(EnhancedPriceRanges.EXTENDED_PRICE_RANGES).length,
-        filtering_enabled: config.EMERGENCY_FILTER_ENABLED,
-        extended_tokens_enabled: config.ENABLE_EXTENDED_TOKENS
-      }
-    };
-  } catch (error) {
-    console.error("Enhanced chat error:", error);
-    return {
-      response: "申し訳ありませんが、処理中にエラーが発生しました。",
-      error: error instanceof Error ? error.message : String(error),
-      timestamp: new Date().toISOString()
-    };
-  }
-}
-
 // Enhanced Web Interface HTML
 function getWebInterfaceHTML(): string {
   return `<!DOCTYPE html>
@@ -419,7 +190,6 @@ function getWebInterfaceHTML(): string {
         }
 
         function updateEnhancedStats(data) {
-            // Update enhanced statistics
             if (data.summary && data.summary.total > 0) {
                 const efficiency = ((data.summary.total - opportunities.length) / data.summary.total * 100).toFixed(0);
                 document.getElementById('filter-efficiency').textContent = efficiency + '%';
@@ -449,7 +219,6 @@ function getWebInterfaceHTML(): string {
             }
             
             container.innerHTML = opportunities.map(opp => {
-                // Determine token type for display
                 const tokenTypes = {
                     'ETH': 'major', 'BTC': 'major', 'SOL': 'major', 'ADA': 'major',
                     'USDC': 'stable', 'DAI': 'stable', 'USDT': 'stable',
@@ -478,6 +247,42 @@ function getWebInterfaceHTML(): string {
         }
         
         async function startMonitoring() {
+            try {
+                showLoading();
+                const response = await fetch('/chat', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ message: 'start monitoring' })
+                });
+                const data = await response.json();
+                addChatMessage('start enhanced monitoring', data.response, 'success');
+                setTimeout(refreshData, 2000);
+            } catch (error) {
+                showError('Failed to start enhanced monitoring');
+            } finally {
+                hideLoading();
+            }
+        }
+        
+        async function stopMonitoring() {
+            try {
+                showLoading();
+                const response = await fetch('/chat', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ message: 'stop monitoring' })
+                });
+                const data = await response.json();
+                addChatMessage('stop monitoring', data.response, 'info');
+                setTimeout(refreshData, 2000);
+            } catch (error) {
+                showError('Failed to stop monitoring');
+            } finally {
+                hideLoading();
+            }
+        }
+        
+        async function collectPrices() {
             try {
                 showLoading();
                 const response = await fetch('/chat', {
@@ -565,7 +370,6 @@ function getWebInterfaceHTML(): string {
         function hideLoading() { document.getElementById('loading').style.display = 'none'; }
         function showError(message) { addChatMessage('', \`❌ \${message}\`, 'error'); }
 
-        // Initialize uptime counter
         updateUptime();
     </script>
 </body>
@@ -629,24 +433,6 @@ const server = createServer(async (req, res) => {
         }
       }));
     }
-    else if (req.url === "/arbitrage") {
-      res.writeHead(200, { "Content-Type": "application/json" });
-      res.end(JSON.stringify({
-        enhanced_arbitrage_system: {
-          monitoring_active: monitoringActive,
-          opportunities: currentOpportunities,
-          total_opportunities: currentOpportunities.length,
-          high_confidence_count: currentOpportunities.filter(o => o.confidence === 'high').length,
-          medium_confidence_count: currentOpportunities.filter(o => o.confidence === 'medium').length,
-          low_confidence_count: currentOpportunities.filter(o => o.confidence === 'low').length,
-          last_scan: currentOpportunities.length > 0 ? new Date(currentOpportunities[0].timestamp).toISOString() : null,
-          token_breakdown: currentOpportunities.reduce((acc, opp) => {
-            acc[opp.token] = (acc[opp.token] || 0) + 1;
-            return acc;
-          }, {})
-        }
-      }));
-    }
     else if (req.url === "/opportunities") {
       res.writeHead(200, { "Content-Type": "application/json" });
       res.end(JSON.stringify({
@@ -667,151 +453,6 @@ const server = createServer(async (req, res) => {
           total_tokens_monitored: Object.keys(EnhancedPriceRanges.EXTENDED_PRICE_RANGES).length,
           filtering_active: config.EMERGENCY_FILTER_ENABLED
         }
-      }));
-    }
-    else if (req.url === "/enhanced-support") {
-      res.writeHead(200, { "Content-Type": "application/json" });
-      
-      const supportedTokensList = Object.keys(EnhancedPriceRanges.EXTENDED_PRICE_RANGES);
-      const tokensByType = {};
-      
-      supportedTokensList.forEach(token => {
-        const range = EnhancedPriceRanges.getPriceRange(token);
-        if (range) {
-          if (!tokensByType[range.type]) tokensByType[range.type] = [];
-          tokensByType[range.type].push({
-            symbol: token,
-            priceRange: `${range.min} - ${range.max}`,
-            min: range.min,
-            max: range.max
-          });
-        }
-      });
-      
-      res.end(JSON.stringify({
-        enhanced_support: {
-          total_tokens: supportedTokensList.length,
-          tokens_by_type: tokensByType,
-          supported_categories: {
-            stablecoin: tokensByType['stablecoin']?.length || 0,
-            major_crypto: (tokensByType['major-crypto']?.length || 0) + (tokensByType['bitcoin-pegged']?.length || 0),
-            defi: tokensByType['defi']?.length || 0,
-            layer1: tokensByType['layer1']?.length || 0,
-            layer2: tokensByType['layer2']?.length || 0,
-            infrastructure: tokensByType['infrastructure']?.length || 0
-          },
-          tier_distribution: {
-            tier1_major: 4,
-            tier2_stable: 3,
-            tier3_defi: 6,
-            tier4_layer: 4,
-            tier5_others: 4
-          }
-        },
-        monitoring_status: {
-          enhanced_monitoring: config.ENABLE_EXTENDED_TOKENS,
-          auto_detection: false,
-          current_opportunities: currentOpportunities.length,
-          filter_efficiency: config.EMERGENCY_FILTER_ENABLED ? "Active" : "Disabled"
-        }
-      }));
-    }
-    else if (req.url === "/test-filter") {
-      res.writeHead(200, { "Content-Type": "application/json" });
-      
-      const testCases: ArbitrageOpportunity[] = [
-        {
-          token: 'DAI',
-          buyExchange: 'pulsex',
-          sellExchange: 'coingecko_average',
-          buyPrice: 0.0052,
-          sellPrice: 1.0000,
-          priceDifference: 0.9948,
-          potentialProfit: 19100,
-          estimatedGasCost: 50,
-          netProfit: 19050,
-          profitPercentage: 19008.64,
-          confidence: 'high' as 'high',
-          timestamp: Date.now()
-        },
-        {
-          token: 'WBTC',
-          buyExchange: 'powswap',
-          sellExchange: 'sushiswap',
-          buyPrice: 0.5575,
-          sellPrice: 1.9300,
-          priceDifference: 1.3725,
-          potentialProfit: 2463,
-          estimatedGasCost: 50,
-          netProfit: 2413,
-          profitPercentage: 246.19,
-          confidence: 'medium' as 'medium',
-          timestamp: Date.now()
-        },
-        {
-          token: 'LINK',
-          buyExchange: 'uniswap',
-          sellExchange: 'sushiswap',
-          buyPrice: 12.50,
-          sellPrice: 13.25,
-          priceDifference: 0.75,
-          potentialProfit: 60,
-          estimatedGasCost: 25,
-          netProfit: 35,
-          profitPercentage: 6.0,
-          confidence: 'high' as 'high',
-          timestamp: Date.now()
-        }
-      ];
-      
-      const filter = new EmergencyAnomalyFilter();
-      const results = filter.filterOpportunities(testCases);
-      
-      res.end(JSON.stringify({
-        enhanced_test_results: results,
-        expectedResult: 'First two should be rejected, LINK should be accepted',
-        passed: results.rejected.length === 2 && results.accepted.length === 1,
-        message: results.rejected.length === 2 && results.accepted.length === 1 ? 
-          '✅ Enhanced filter working correctly - anomalies rejected, valid opportunities accepted' : 
-          '❌ Enhanced filter needs adjustment',
-        enhanced_filter_status: {
-          emergencyFilterEnabled: config.EMERGENCY_FILTER_ENABLED,
-          maxProfitRate: config.MAX_PROFIT_RATE,
-          strictValidation: config.STRICT_VALIDATION,
-          supportedTokens: Object.keys(EnhancedPriceRanges.EXTENDED_PRICE_RANGES).length
-        }
-      }));
-    }
-    else if (req.url === "/config") {
-      res.writeHead(200, { "Content-Type": "application/json" });
-      res.end(JSON.stringify({
-        api_keys: {
-          ANTHROPIC_API_KEY: config.ANTHROPIC_API_KEY ? "✅ Configured" : "❌ Missing",
-          OPENAI_API_KEY: config.OPENAI_API_KEY ? "✅ Configured" : "❌ Missing",
-          COINGECKO_API_KEY: config.COINGECKO_API_KEY ? "✅ Configured" : "❌ Missing"
-        },
-        arbitrage_config: {
-          MIN_PROFIT_THRESHOLD: config.MIN_PROFIT_THRESHOLD + "%",
-          MAX_GAS_PRICE: config.MAX_GAS_PRICE + " Gwei",
-          TRADE_AMOUNT: "$" + config.TRADE_AMOUNT
-        },
-        enhanced_filter_config: {
-          EMERGENCY_FILTER_ENABLED: config.EMERGENCY_FILTER_ENABLED,
-          MAX_PROFIT_RATE: config.MAX_PROFIT_RATE + "%",
-          STRICT_VALIDATION: config.STRICT_VALIDATION,
-          REJECT_PULSEX: config.REJECT_PULSEX,
-          REJECT_POWSWAP: config.REJECT_POWSWAP
-        },
-        enhanced_monitoring_config: {
-          ENABLE_EXTENDED_TOKENS: config.ENABLE_EXTENDED_TOKENS,
-          MONITOR_DEFI_TOKENS: config.MONITOR_DEFI_TOKENS,
-          ENHANCED_LOGGING: config.ENHANCED_LOGGING,
-          UPDATE_INTERVAL: config.UPDATE_INTERVAL + "ms",
-          MAX_CONCURRENT_REQUESTS: config.MAX_CONCURRENT_REQUESTS,
-          COLLECTION_TIMEOUT: config.COLLECTION_TIMEOUT + "ms"
-        },
-        services: serviceStatus,
-        supported_tokens_count: Object.keys(EnhancedPriceRanges.EXTENDED_PRICE_RANGES).length
       }));
     }
     else if (req.url === "/chat") {
@@ -867,13 +508,11 @@ const server = createServer(async (req, res) => {
       res.writeHead(404, { "Content-Type": "application/json" });
       res.end(JSON.stringify({
         error: "Not Found",
-        available_endpoints: ["/", "/dashboard", "/health", "/chat", "/arbitrage", "/opportunities", "/config", "/test-filter", "/enhanced-support"],
-        web_interface: "Access enhanced dashboard at /",
-        test_filter: "Test enhanced filter at /test-filter",
-        enhanced_support: "View enhanced token support at /enhanced-support"
+        available_endpoints: ["/", "/dashboard", "/health", "/chat", "/opportunities"],
+        web_interface: "Access enhanced dashboard at /"
       }));
     }
-  } catch (error) {
+  } catch (error: any) {
     console.error("Enhanced server error:", error);
     res.writeHead(500, { "Content-Type": "application/json" });
     res.end(JSON.stringify({ 
@@ -907,10 +546,8 @@ async function start() {
     
     server.listen(PORT, "0.0.0.0", () => {
       console.log(`🌐 Enhanced server running on port ${PORT}`);
-      console.log(`🎛️ Enhanced Dashboard: https://${RAILWAY_SERVICE_NAME || 'localhost'}/`);
-      console.log(`📊 Health API: https://${RAILWAY_SERVICE_NAME || 'localhost'}/health`);
-      console.log(`🧪 Enhanced Filter Test: https://${RAILWAY_SERVICE_NAME || 'localhost'}/test-filter`);
-      console.log(`🎯 Enhanced Support Info: https://${RAILWAY_SERVICE_NAME || 'localhost'}/enhanced-support`);
+      console.log(`🎛️ Enhanced Dashboard: ${RAILWAY_SERVICE_NAME ? `https://${RAILWAY_SERVICE_NAME}/` : `http://localhost:${PORT}/`}`);
+      console.log(`📊 Health API: ${RAILWAY_SERVICE_NAME ? `https://${RAILWAY_SERVICE_NAME}/health` : `http://localhost:${PORT}/health`}`);
       console.log("✅ Enhanced arbitrage system ready!");
       
       if (serviceStatus.elizaos === 'available') {
@@ -923,7 +560,6 @@ async function start() {
         console.log("⚠️ Add COINGECKO_API_KEY for full enhanced functionality");
       }
 
-      // Enhanced system status
       const tokenCount = Object.keys(EnhancedPriceRanges.EXTENDED_PRICE_RANGES).length;
       console.log(`🛡️ Enhanced Filter: ${config.EMERGENCY_FILTER_ENABLED ? 'ENABLED' : 'DISABLED'}`);
       console.log(`📊 Token Support: ${tokenCount} tokens across 5 tiers`);
@@ -950,44 +586,600 @@ async function start() {
   }
 }
 
-start();
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ message: 'start monitoring' })
-                });
-                const data = await response.json();
-                addChatMessage('start enhanced monitoring', data.response, 'success');
-                setTimeout(refreshData, 2000);
-            } catch (error) {
-                showError('Failed to start enhanced monitoring');
-            } finally {
-                hideLoading();
-            }
+start();// ElizaOS Arbitrage Bot - Enhanced Version with 22+ Token Support
+import dotenv from "dotenv";
+import { createServer } from "http";
+import { readFile } from "fs/promises";
+import { join } from "path";
+import https from "https";
+import { URL } from "url";
+
+dotenv.config();
+
+const PORT = parseInt(process.env.PORT || "3000", 10);
+const RAILWAY_ENVIRONMENT = process.env.RAILWAY_ENVIRONMENT;
+const RAILWAY_SERVICE_NAME = process.env.RAILWAY_SERVICE_NAME;
+
+console.log("🚀 ElizaOS Enhanced Arbitrage Bot Starting...");
+console.log("🌍 Environment:", process.env.NODE_ENV || "development");
+console.log("🚂 Railway:", RAILWAY_ENVIRONMENT || "local");
+console.log("🎯 Enhanced Mode: 22+ Token Monitoring");
+
+// Error handling
+process.on('uncaughtException', (error) => console.error('❌ Uncaught Exception:', error));
+process.on('unhandledRejection', (reason) => console.error('❌ Unhandled Rejection:', reason));
+
+// Types
+interface PriceData {
+  exchange: string;
+  pair: string;
+  price: number;
+  volume: number;
+  timestamp: number;
+}
+
+interface ArbitrageOpportunity {
+  token: string;
+  buyExchange: string;
+  sellExchange: string;
+  buyPrice: number;
+  sellPrice: number;
+  priceDifference: number;
+  potentialProfit: number;
+  estimatedGasCost: number;
+  netProfit: number;
+  profitPercentage: number;
+  confidence: 'low' | 'medium' | 'high';
+  timestamp: number;
+}
+
+interface ValidationResult {
+  isValid: boolean;
+  reason: string;
+  score: number;
+  recommendation: 'ACCEPT' | 'CAUTION' | 'REJECT';
+}
+
+interface Memory {
+  userId: string;
+  roomId: string;
+  content: { text: string; [key: string]: any };
+  [key: string]: any;
+}
+
+interface Character {
+  name: string;
+  bio: string[];
+  description?: string;
+  personality?: string;
+  knowledge?: string[];
+  modelProvider?: string;
+  [key: string]: any;
+}
+
+interface ServiceStatus {
+  elizaos: 'available' | 'limited' | 'unavailable';
+  ai: boolean;
+  blockchain: boolean;
+  priceFeeds: boolean;
+  arbitrageMonitoring: boolean;
+  deployment: 'railway' | 'local';
+}
+
+// Enhanced Config
+const config = {
+  ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY,
+  OPENAI_API_KEY: process.env.OPENAI_API_KEY,
+  COINGECKO_API_KEY: process.env.COINGECKO_API_KEY,
+  MIN_PROFIT_THRESHOLD: parseFloat(process.env.MIN_PROFIT_THRESHOLD || "0.5"),
+  MAX_GAS_PRICE: parseFloat(process.env.MAX_GAS_PRICE || "50"),
+  TRADE_AMOUNT: parseFloat(process.env.TRADE_AMOUNT || "1000"),
+  // Enhanced Filter Settings
+  EMERGENCY_FILTER_ENABLED: process.env.EMERGENCY_FILTER_ENABLED === 'true',
+  MAX_PROFIT_RATE: parseFloat(process.env.MAX_PROFIT_RATE || "50"),
+  STRICT_VALIDATION: process.env.STRICT_VALIDATION === 'true',
+  REJECT_PULSEX: process.env.REJECT_PULSEX === 'true',
+  REJECT_POWSWAP: process.env.REJECT_POWSWAP === 'true',
+  // Enhanced Monitoring Settings
+  ENABLE_EXTENDED_TOKENS: process.env.ENABLE_EXTENDED_TOKENS === 'true',
+  MONITOR_DEFI_TOKENS: process.env.MONITOR_DEFI_TOKENS === 'true',
+  ENHANCED_LOGGING: process.env.ENHANCED_LOGGING === 'true',
+  UPDATE_INTERVAL: parseInt(process.env.UPDATE_INTERVAL || "60000"),
+  MAX_CONCURRENT_REQUESTS: parseInt(process.env.MAX_CONCURRENT_REQUESTS || "3"),
+  COLLECTION_TIMEOUT: parseInt(process.env.COLLECTION_TIMEOUT || "30000")
+};
+
+// Type for config
+type ConfigType = typeof config;
+
+// Global state
+let serviceStatus: ServiceStatus = {
+  elizaos: 'unavailable',
+  ai: false,
+  blockchain: false,
+  priceFeeds: false,
+  arbitrageMonitoring: false,
+  deployment: RAILWAY_ENVIRONMENT ? 'railway' : 'local',
+};
+
+let elizaAgent: any = null;
+let elizaAvailableMethods: string[] = [];
+let arbitrageCollector: ArbitrageDataCollector | null = null;
+let currentOpportunities: ArbitrageOpportunity[] = [];
+let monitoringActive = false;
+
+const defaultCharacter: Character = {
+  name: "EnhancedArbitrageTrader",
+  bio: [
+    "Advanced AI-powered DeFi arbitrage specialist with 22+ token monitoring",
+    "Expert in multi-tier cross-DEX price analysis and opportunity detection"
+  ],
+  description: "Enhanced DeFi arbitrage trading specialist with comprehensive token coverage",
+  personality: "analytical, data-driven, risk-aware, profit-focused, detail-oriented",
+  knowledge: [
+    "Real-time price monitoring across 22+ tokens and multiple DEXs",
+    "Multi-tier arbitrage opportunity detection and analysis", 
+    "Enhanced filtering and validation systems",
+    "Performance optimization and quality assurance"
+  ],
+  modelProvider: "anthropic"
+};
+
+// HTTP helper function
+function makeHttpRequest(url: string): Promise<any> {
+  return new Promise((resolve, reject) => {
+    try {
+      const urlObj = new URL(url);
+      const options = {
+        hostname: urlObj.hostname,
+        port: urlObj.port || 443,
+        path: urlObj.pathname + urlObj.search,
+        method: 'GET',
+        headers: { 
+          'User-Agent': 'ElizaEnhancedArbitrageBot/2.0', 
+          'Accept': 'application/json' 
+        }
+      };
+
+      const req = https.request(options, (res) => {
+        let data = '';
+        res.on('data', chunk => data += chunk);
+        res.on('end', () => {
+          try { 
+            resolve(JSON.parse(data)); 
+          } catch (error) { 
+            resolve(data); 
+          }
+        });
+      });
+
+      req.on('error', reject);
+      req.setTimeout(config.COLLECTION_TIMEOUT, () => { 
+        req.destroy(); 
+        reject(new Error('Request timeout')); 
+      });
+      req.end();
+    } catch (error) { 
+      reject(error); 
+    }
+  });
+}
+
+// Enhanced Price Ranges Class
+class EnhancedPriceRanges {
+  static readonly EXTENDED_PRICE_RANGES = {
+    // Existing tokens
+    'DAI': { min: 0.90, max: 1.10, type: 'stablecoin' },
+    'USDC': { min: 0.90, max: 1.10, type: 'stablecoin' },
+    'USDT': { min: 0.90, max: 1.10, type: 'stablecoin' },
+    'WBTC': { min: 40000, max: 200000, type: 'bitcoin-pegged' },
+    'ETH': { min: 1500, max: 15000, type: 'major-crypto' },
+    'ETHEREUM': { min: 1500, max: 15000, type: 'major-crypto' },
+    'BITCOIN': { min: 40000, max: 200000, type: 'bitcoin-pegged' },
+    
+    // Enhanced token support
+    'LINK': { min: 5, max: 100, type: 'defi' },
+    'CHAINLINK': { min: 5, max: 100, type: 'defi' },
+    'UNI': { min: 3, max: 50, type: 'defi' },
+    'UNISWAP': { min: 3, max: 50, type: 'defi' },
+    'AAVE': { min: 50, max: 1000, type: 'defi' },
+    'MATIC': { min: 0.3, max: 10, type: 'layer2' },
+    'POLYGON': { min: 0.3, max: 10, type: 'layer2' },
+    'SOL': { min: 10, max: 500, type: 'layer1' },
+    'SOLANA': { min: 10, max: 500, type: 'layer1' },
+    'ADA': { min: 0.1, max: 5, type: 'layer1' },
+    'CARDANO': { min: 0.1, max: 5, type: 'layer1' },
+    'AVAX': { min: 8, max: 200, type: 'layer1' },
+    'AVALANCHE': { min: 8, max: 200, type: 'layer1' },
+    'COMP': { min: 30, max: 800, type: 'defi' },
+    'MKR': { min: 500, max: 5000, type: 'defi' },
+    'MAKER': { min: 500, max: 5000, type: 'defi' },
+    'GRT': { min: 0.05, max: 3, type: 'infrastructure' },
+    'SNX': { min: 1, max: 50, type: 'defi' },
+    'CRV': { min: 0.2, max: 10, type: 'defi' },
+    'SUSHI': { min: 0.3, max: 15, type: 'defi' },
+    'CAKE': { min: 1, max: 30, type: 'defi' },
+    'ARB': { min: 0.5, max: 20, type: 'layer2' },
+    'OP': { min: 1, max: 50, type: 'layer2' }
+  } as const;
+
+  static getPriceRange(token: string): { min: number; max: number; type: string } | null {
+    const normalizedToken = token.toUpperCase() as keyof typeof this.EXTENDED_PRICE_RANGES;
+    return this.EXTENDED_PRICE_RANGES[normalizedToken] || null;
+  }
+
+  static isValidPrice(token: string, price: number): boolean {
+    const range = this.getPriceRange(token);
+    if (!range) return true;
+    return price >= range.min && price <= range.max;
+  }
+}
+
+// Enhanced Emergency Anomaly Filter
+class EmergencyAnomalyFilter {
+  private readonly PRICE_RANGES = EnhancedPriceRanges.EXTENDED_PRICE_RANGES;
+  private readonly UNRELIABLE_SOURCES = [
+    'pulsex', 'pulseX', 'powswap', 'unknown_dex', 'unknown'
+  ];
+  private readonly MAX_PROFIT_RATE = parseFloat(process.env.MAX_PROFIT_RATE || "50");
+
+  validateOpportunity(opportunity: ArbitrageOpportunity): ValidationResult {
+    const validationResult: ValidationResult = {
+      isValid: false,
+      reason: '',
+      score: 0,
+      recommendation: 'REJECT'
+    };
+
+    // 1. Basic number validation
+    if (!this.isValidNumber(opportunity.buyPrice) || !this.isValidNumber(opportunity.sellPrice)) {
+      validationResult.reason = 'Invalid price data';
+      return validationResult;
+    }
+
+    // 2. Enhanced price range validation
+    const priceValidation = this.validatePriceRange(opportunity.token, opportunity.buyPrice, opportunity.sellPrice);
+    if (!priceValidation.valid) {
+      validationResult.reason = `Price out of range: ${priceValidation.reason}`;
+      return validationResult;
+    }
+
+    // 3. Dynamic profit rate validation based on token type
+    const profitValidation = this.validateProfitRate(opportunity);
+    if (!profitValidation.valid) {
+      validationResult.reason = `Invalid profit rate: ${profitValidation.reason}`;
+      return validationResult;
+    }
+
+    // 4. Source reliability validation
+    const sourceValidation = this.validateSources(opportunity.buyExchange, opportunity.sellExchange);
+    if (!sourceValidation.valid) {
+      validationResult.reason = `Unreliable source: ${sourceValidation.reason}`;
+      return validationResult;
+    }
+
+    // 5. Stablecoin special validation
+    if (this.isStablecoin(opportunity.token)) {
+      const stableValidation = this.validateStablecoin(opportunity);
+      if (!stableValidation.valid) {
+        validationResult.reason = `Stablecoin anomaly: ${stableValidation.reason}`;
+        return validationResult;
+      }
+    }
+
+    // 6. Enhanced scoring
+    validationResult.score = this.calculateScore(opportunity);
+    
+    if (validationResult.score >= 70) {
+      validationResult.isValid = true;
+      validationResult.recommendation = 'ACCEPT';
+      validationResult.reason = 'Passed all validation checks';
+    } else if (validationResult.score >= 40) {
+      validationResult.isValid = false;
+      validationResult.recommendation = 'CAUTION';
+      validationResult.reason = 'Moderate confidence, requires manual review';
+    } else {
+      validationResult.recommendation = 'REJECT';
+      validationResult.reason = 'Low confidence score';
+    }
+
+    return validationResult;
+  }
+
+  private validatePriceRange(token: string, buyPrice: number, sellPrice: number): { valid: boolean; reason: string } {
+    const range = EnhancedPriceRanges.getPriceRange(token);
+    
+    if (!range) {
+      return { valid: true, reason: 'Unknown token, skipping range check' };
+    }
+
+    if (!EnhancedPriceRanges.isValidPrice(token, buyPrice)) {
+      return { 
+        valid: false, 
+        reason: `Buy price $${buyPrice} outside range $${range.min}-$${range.max} for ${range.type}` 
+      };
+    }
+
+    if (!EnhancedPriceRanges.isValidPrice(token, sellPrice)) {
+      return { 
+        valid: false, 
+        reason: `Sell price $${sellPrice} outside range $${range.min}-$${range.max} for ${range.type}` 
+      };
+    }
+
+    return { valid: true, reason: `Price range valid for ${range.type}` };
+  }
+
+  private validateProfitRate(opportunity: ArbitrageOpportunity): { valid: boolean; reason: string } {
+    const range = EnhancedPriceRanges.getPriceRange(opportunity.token);
+    
+    // Token type-specific max profit rates
+    const maxProfitRates: { [key: string]: number } = {
+      'stablecoin': 5,      // Stablecoins max 5%
+      'major-crypto': 25,   // Major crypto max 25%
+      'bitcoin-pegged': 25, // Bitcoin-pegged max 25%
+      'defi': 50,          // DeFi tokens max 50%
+      'layer1': 100,       // Layer 1 tokens max 100%
+      'layer2': 100,       // Layer 2 tokens max 100%
+      'infrastructure': 150, // Infrastructure tokens max 150%
+      'altcoin': 200       // Other altcoins max 200%
+    };
+
+    const maxRate = range ? maxProfitRates[range.type] || this.MAX_PROFIT_RATE : this.MAX_PROFIT_RATE;
+    
+    if (opportunity.profitPercentage > maxRate) {
+      return { 
+        valid: false, 
+        reason: `${opportunity.profitPercentage.toFixed(2)}% exceeds max for ${range?.type || 'unknown'} (${maxRate}%)` 
+      };
+    }
+
+    return { valid: true, reason: 'Profit rate acceptable' };
+  }
+
+  private validateSources(buyExchange: string, sellExchange: string): { valid: boolean; reason: string } {
+    const normalizedBuySource = buyExchange.toLowerCase();
+    const normalizedSellSource = sellExchange.toLowerCase();
+
+    if (this.UNRELIABLE_SOURCES.some(source => normalizedBuySource.includes(source))) {
+      return { 
+        valid: false, 
+        reason: `Unreliable buy source: ${buyExchange}` 
+      };
+    }
+
+    if (this.UNRELIABLE_SOURCES.some(source => normalizedSellSource.includes(source))) {
+      return { 
+        valid: false, 
+        reason: `Unreliable sell source: ${sellExchange}` 
+      };
+    }
+
+    if (normalizedBuySource === normalizedSellSource) {
+      return { 
+        valid: false, 
+        reason: 'Same source for buy and sell' 
+      };
+    }
+
+    return { valid: true, reason: 'Sources OK' };
+  }
+
+  private validateStablecoin(opportunity: ArbitrageOpportunity): { valid: boolean; reason: string } {
+    const token = opportunity.token.toUpperCase();
+    
+    if (!this.isStablecoin(token)) {
+      return { valid: true, reason: 'Not a stablecoin' };
+    }
+
+    const expectedPrice = 1.0;
+    const maxDeviation = 0.05; // 5%
+
+    const buyDeviation = Math.abs(opportunity.buyPrice - expectedPrice) / expectedPrice;
+    const sellDeviation = Math.abs(opportunity.sellPrice - expectedPrice) / expectedPrice;
+
+    if (buyDeviation > maxDeviation) {
+      return { 
+        valid: false, 
+        reason: `Buy price deviation ${(buyDeviation * 100).toFixed(2)}% exceeds ${maxDeviation * 100}%` 
+      };
+    }
+
+    if (sellDeviation > maxDeviation) {
+      return { 
+        valid: false, 
+        reason: `Sell price deviation ${(sellDeviation * 100).toFixed(2)}% exceeds ${maxDeviation * 100}%` 
+      };
+    }
+
+    return { valid: true, reason: 'Stablecoin prices within acceptable range' };
+  }
+
+  private calculateScore(opportunity: ArbitrageOpportunity): number {
+    let score = 0;
+
+    // Profit rate score (adaptive based on token type)
+    const range = EnhancedPriceRanges.getPriceRange(opportunity.token);
+    const tokenType = range?.type || 'unknown';
+    
+    if (tokenType === 'stablecoin') {
+      if (opportunity.profitPercentage >= 0.5 && opportunity.profitPercentage <= 2) score += 40;
+      else if (opportunity.profitPercentage <= 5) score += 20;
+    } else if (tokenType === 'major-crypto' || tokenType === 'bitcoin-pegged') {
+      if (opportunity.profitPercentage >= 1 && opportunity.profitPercentage <= 10) score += 40;
+      else if (opportunity.profitPercentage <= 25) score += 20;
+    } else {
+      if (opportunity.profitPercentage >= 2 && opportunity.profitPercentage <= 15) score += 40;
+      else if (opportunity.profitPercentage <= 50) score += 20;
+    }
+
+    // Source reliability score
+    const sourceReliability = this.getSourceReliability(opportunity.buyExchange) + 
+                            this.getSourceReliability(opportunity.sellExchange);
+    score += sourceReliability;
+
+    // Token type bonus
+    const typeBonus: { [key: string]: number } = {
+      'stablecoin': 20,
+      'major-crypto': 15,
+      'bitcoin-pegged': 15,
+      'defi': 10,
+      'layer1': 8,
+      'layer2': 8,
+      'infrastructure': 5
+    };
+    score += typeBonus[tokenType] || 0;
+
+    return Math.max(0, Math.min(100, score));
+  }
+
+  private isValidNumber(value: number): boolean {
+    return typeof value === 'number' && !isNaN(value) && value > 0 && isFinite(value);
+  }
+
+  private isStablecoin(token: string): boolean {
+    const stablecoins = ['DAI', 'USDC', 'USDT', 'BUSD', 'FRAX'];
+    return stablecoins.includes(token.toUpperCase());
+  }
+
+  private getSourceReliability(source: string): number {
+    const reliability: { [key: string]: number } = {
+      'coingecko': 15,
+      'coingecko_average': 15,
+      'binance': 12,
+      'coinbase': 12,
+      'uniswap': 10,
+      'uniswap_v3': 10,
+      'sushiswap': 8,
+      'curve': 8,
+      'pancakeswap': 6,
+      'quickswap': 5,
+      'pulsex': 0,
+      'powswap': 0
+    };
+
+    return reliability[source.toLowerCase()] || 5;
+  }
+
+  filterOpportunities(opportunities: ArbitrageOpportunity[]): {
+    accepted: ArbitrageOpportunity[];
+    rejected: ArbitrageOpportunity[];
+    summary: {
+      total: number;
+      accepted: number;
+      rejected: number;
+      filterEfficiency: string;
+    };
+  } {
+    const accepted: ArbitrageOpportunity[] = [];
+    const rejected: ArbitrageOpportunity[] = [];
+
+    console.log(`🔍 Enhanced filtering ${opportunities.length} opportunities...`);
+
+    for (const opportunity of opportunities) {
+      const validation = this.validateOpportunity(opportunity);
+      
+      if (validation.isValid) {
+        accepted.push({
+          ...opportunity,
+          confidence: this.mapScoreToConfidence(validation.score)
+        });
+        if (config.ENHANCED_LOGGING) {
+          console.log(`✅ ACCEPTED: ${opportunity.token} - ${validation.reason} (Score: ${validation.score})`);
+        }
+      } else {
+        rejected.push(opportunity);
+        if (config.ENHANCED_LOGGING) {
+          console.log(`❌ REJECTED: ${opportunity.token} - ${validation.reason}`);
+        }
+      }
+    }
+
+    const summary = {
+      total: opportunities.length,
+      accepted: accepted.length,
+      rejected: rejected.length,
+      filterEfficiency: ((rejected.length / opportunities.length) * 100).toFixed(1)
+    };
+
+    console.log(`📊 Enhanced Filter Results: ${accepted.length} accepted, ${rejected.length} rejected (${summary.filterEfficiency}% filtered out)`);
+
+    return { accepted: accepted.sort((a, b) => b.netProfit - a.netProfit), rejected, summary };
+  }
+
+  private mapScoreToConfidence(score: number): 'low' | 'medium' | 'high' {
+    if (score >= 70) return 'high';
+    if (score >= 40) return 'medium';
+    return 'low';
+  }
+}
+
+// Enhanced Arbitrage Data Collector
+class ArbitrageDataCollector {
+  constructor(private config: ConfigType) {}
+
+  async collectPriceData(tokens: string[]): Promise<PriceData[]> {
+    const priceData: PriceData[] = [];
+    const startTime = Date.now();
+    
+    try {
+      if (config.ENHANCED_LOGGING) {
+        console.log(`📊 Enhanced price collection for ${tokens.length} tokens: ${tokens.join(', ')}`);
+      }
+
+      // CoinGecko API (high precision data)
+      if (this.config.COINGECKO_API_KEY) {
+        try {
+          console.log(`   🥇 Fetching high-precision data from CoinGecko...`);
+          const cgStartTime = Date.now();
+          const cgPrices = await this.getCoinGeckoPrices(tokens);
+          const cgTime = Date.now() - cgStartTime;
+          
+          priceData.push(...cgPrices);
+          console.log(`   ✅ CoinGecko: ${cgPrices.length} price points in ${cgTime}ms`);
+          
+        } catch (cgError: any) {
+          console.warn(`   ⚠️ CoinGecko collection failed:`, cgError.message);
         }
         
-        async function stopMonitoring() {
-            try {
-                showLoading();
-                const response = await fetch('/chat', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ message: 'stop monitoring' })
-                });
-                const data = await response.json();
-                addChatMessage('stop monitoring', data.response, 'info');
-                setTimeout(refreshData, 2000);
-            } catch (error) {
-                showError('Failed to stop monitoring');
-            } finally {
-                hideLoading();
-            }
-        }
+        // Rate limiting
+        await new Promise(resolve => setTimeout(resolve, 500));
+      }
+
+      // DEX price data collection
+      try {
+        console.log(`   🌐 Fetching decentralized data from DEX sources...`);
+        const dexStartTime = Date.now();
+        const dexPrices = await this.getDEXPrices(tokens);
+        const dexTime = Date.now() - dexStartTime;
         
-        async function collectPrices() {
-            try {
-                showLoading();
-                const response = await fetch('/chat', {
-                    method: 'POST',
-                          for (const [token, data] of Object.entries(response)) {
+        priceData.push(...dexPrices);
+        console.log(`   ✅ DEX Sources: ${dexPrices.length} price points in ${dexTime}ms`);
+        
+      } catch (dexError: any) {
+        console.warn(`   ⚠️ DEX collection failed:`, dexError.message);
+      }
+
+      const totalTime = Date.now() - startTime;
+      console.log(`📈 Enhanced collection completed in ${totalTime}ms with ${priceData.length} data points`);
+
+      return priceData;
+
+    } catch (error: any) {
+      const totalTime = Date.now() - startTime;
+      console.error(`❌ Enhanced price collection failed after ${totalTime}ms:`, error);
+      return priceData;
+    }
+  }
+
+  private async getCoinGeckoPrices(tokens: string[]): Promise<PriceData[]> {
+    try {
+      const tokenIds = tokens.join(',');
+      const url = `https://api.coingecko.com/api/v3/simple/price?ids=${tokenIds}&vs_currencies=usd&include_24hr_vol=true&x_cg_demo_api_key=${this.config.COINGECKO_API_KEY}`;
+      const response = await makeHttpRequest(url);
+      const priceData: PriceData[] = [];
+
+      for (const [token, data] of Object.entries(response)) {
         if (data && typeof data === 'object') {
           priceData.push({
             exchange: 'coingecko_average',
@@ -1013,16 +1205,7 @@ start();
         'bitcoin': '0x2260FAC5E5542a773Aa44fBCfeDf7C193bc2C599',
         'dai': '0x6B175474E89094C44Da98b954EedeAC495271d0F',
         'chainlink': '0x514910771AF9Ca656af840dff83E8264EcF986CA',
-        'uniswap': '0x1f9840a85d5af5bf1d1762f925bdaddc4201f984',
-        'aave': '0x7Fc66500c84A76Ad7e9c93437bFc5Ac33E2DDaE9',
-        'compound-governance-token': '0xc00e94Cb662C3520282E6f5717214004A7f26888',
-        'maker': '0x9f8F72aA9304c8B593d555F12eF6589cC3A579A2',
-        'synthetix-network-token': '0xC011a73ee8576Fb46F5E1c5751cA3B9Fe0af2a6F',
-        'polygon': '0x7D1AfA7B718fb893dB30A3aBc0Cfc608AaCfeBB0',
-        'avalanche-2': '0x85f138bfEE4ef8e540890CFb48F620571d67Eda3',
-        'the-graph': '0xc944E90C64B2c07662A292be6244BDf05Cda44a7',
-        'curve-dao-token': '0xD533a949740bb3306d119CC777fa900bA034cd52',
-        'sushiswap': '0x6B3595068778DD592e39A122f4f5a5cF09C90fE2'
+        'uniswap': '0x1f9840a85d5af5bf1d1762f925bdaddc4201f984'
       };
 
       const priceData: PriceData[] = [];
@@ -1064,12 +1247,14 @@ start();
     const opportunities: ArbitrageOpportunity[] = [];
     const tokenGroups: { [key: string]: PriceData[] } = {};
     
+    // Group price data by token
     for (const data of priceData) {
       const token = data.pair.split('/')[0].toLowerCase();
       if (!tokenGroups[token]) tokenGroups[token] = [];
       tokenGroups[token].push(data);
     }
 
+    // Analyze each token group for arbitrage opportunities
     for (const [token, prices] of Object.entries(tokenGroups)) {
       if (prices.length < 2) continue;
 
@@ -1109,17 +1294,21 @@ start();
       }
     }
 
-    // Apply enhanced filter
-    const filter = new EmergencyAnomalyFilter();
-    const filteredResults = filter.filterOpportunities(opportunities);
+    // Apply enhanced filter if enabled
+    if (config.EMERGENCY_FILTER_ENABLED) {
+      const filter = new EmergencyAnomalyFilter();
+      const filteredResults = filter.filterOpportunities(opportunities);
 
-    console.log(`🛡️ Enhanced Filter Applied:`);
-    console.log(`📊 Original opportunities: ${opportunities.length}`);
-    console.log(`✅ Accepted: ${filteredResults.accepted.length}`);
-    console.log(`❌ Rejected: ${filteredResults.rejected.length}`);
-    console.log(`🔍 Filter efficiency: ${filteredResults.summary.filterEfficiency}%`);
+      console.log(`🛡️ Enhanced Filter Applied:`);
+      console.log(`📊 Original opportunities: ${opportunities.length}`);
+      console.log(`✅ Accepted: ${filteredResults.accepted.length}`);
+      console.log(`❌ Rejected: ${filteredResults.rejected.length}`);
+      console.log(`🔍 Filter efficiency: ${filteredResults.summary.filterEfficiency}%`);
 
-    return filteredResults.accepted;
+      return filteredResults.accepted;
+    }
+
+    return opportunities.sort((a, b) => b.netProfit - a.netProfit);
   }
 
   private getMinProfitThreshold(token: string): number {
@@ -1127,7 +1316,7 @@ start();
     
     if (!range) return this.config.MIN_PROFIT_THRESHOLD;
 
-    const thresholds = {
+    const thresholds: { [key: string]: number } = {
       'stablecoin': 0.1,      // 0.1%
       'major-crypto': 0.5,    // 0.5%
       'bitcoin-pegged': 0.5,  // 0.5%
@@ -1379,7 +1568,6 @@ ${context ? `現在のデータ: ${context}` : ''}
   private generateEnhancedRuleBasedResponse(message: string): string {
     const lowerMessage = message.toLowerCase();
     
-    // Enhanced response patterns
     if (lowerMessage.includes('サポート') || lowerMessage.includes('support')) {
       const tokenCount = Object.keys(EnhancedPriceRanges.EXTENDED_PRICE_RANGES).length;
       return `🔧 拡張サポート状況:
@@ -1393,7 +1581,7 @@ ${context ? `現在のデータ: ${context}` : ''}
 • メジャー暗号通貨: BTC, ETH, SOL, ADA
 • DeFiトークン: LINK, UNI, AAVE, COMP, MKR
 • レイヤー1/2: MATIC, AVAX, ARB, OP
-• インフラ: GRT, CRV, SUSHI
+• インフラ: GRT, CRV, SUSHI, CAKE
 
 詳細情報: /api/enhanced-support`;
     }
@@ -1402,7 +1590,7 @@ ${context ? `現在のデータ: ${context}` : ''}
       let response = `現在のアービトラージ機会 (${currentOpportunities.length}件):\n\n`;
       
       // Group by token type
-      const byType = currentOpportunities.reduce((acc, opp) => {
+      const byType = currentOpportunities.reduce((acc: any, opp) => {
         const range = EnhancedPriceRanges.getPriceRange(opp.token);
         const type = range?.type || 'unknown';
         if (!acc[type]) acc[type] = [];
@@ -1456,10 +1644,9 @@ ${context ? `現在のデータ: ${context}` : ''}
   }
 }
 
-// Services
+// Services initialization
 const aiService = new AIChatService();
 
-// Service initialization
 async function initializeServices() {
   console.log("🔄 Initializing enhanced services...");
 
@@ -1479,14 +1666,6 @@ async function initializeServices() {
 
     console.log("📊 Enhanced services initialized:", serviceStatus);
     
-    // Log enhancement status
-    const tokenCount = Object.keys(EnhancedPriceRanges.EXTENDED_PRICE_RANGES).length;
-    console.log(`🎯 Enhanced Features Active:`);
-    console.log(`   • Token Coverage: ${tokenCount} tokens`);
-    console.log(`   • Advanced Filtering: ${config.EMERGENCY_FILTER_ENABLED ? 'Enabled' : 'Disabled'}`);
-    console.log(`   • Enhanced Logging: ${config.ENHANCED_LOGGING ? 'Enabled' : 'Disabled'}`);
-    console.log(`   • Extended Tokens: ${config.ENABLE_EXTENDED_TOKENS ? 'Enabled' : 'Disabled'}`);
-    
   } catch (error) {
     console.error("⚠️ Enhanced service initialization error:", error);
   }
@@ -1494,50 +1673,22 @@ async function initializeServices() {
 
 // Enhanced Monitoring with 22+ Tokens
 async function startMonitoringLoop() {
-  // === Enhanced Token List (22+ tokens across 5 tiers) ===
   const monitoredTokens = [
-    // === Tier 1: Major Cryptocurrencies (Highest Priority) ===
-    'ethereum',           // ETH - Ethereum
-    'bitcoin',           // BTC - Bitcoin  
-    'solana',            // SOL - Solana
-    'cardano',           // ADA - Cardano
-    
-    // === Tier 2: Stablecoins (High Priority) ===
-    'usd-coin',          // USDC - USD Coin
-    'dai',               // DAI - MakerDAO
-    'tether',            // USDT - Tether
-    
-    // === Tier 3: DeFi Tokens (Medium Priority) ===
-    'chainlink',         // LINK - Chainlink
-    'uniswap',           // UNI - Uniswap
-    'aave',              // AAVE - Aave
-    'compound-governance-token', // COMP - Compound
-    'maker',             // MKR - MakerDAO
-    'synthetix-network-token',  // SNX - Synthetix
-    
-    // === Tier 4: Layer 1/Layer 2 (Medium Priority) ===
-    'polygon',           // MATIC - Polygon
-    'avalanche-2',       // AVAX - Avalanche
-    'arbitrum',          // ARB - Arbitrum
-    'optimism',          // OP - Optimism
-    
-    // === Tier 5: Other Important DeFi (Lower Priority) ===
-    'the-graph',         // GRT - The Graph
-    'curve-dao-token',   // CRV - Curve
-    'pancakeswap-token', // CAKE - PancakeSwap
-    'sushiswap'          // SUSHI - SushiSwap
+    // Tier 1: Major Cryptocurrencies
+    'ethereum', 'bitcoin', 'solana', 'cardano',
+    // Tier 2: Stablecoins  
+    'usd-coin', 'dai', 'tether',
+    // Tier 3: DeFi Tokens
+    'chainlink', 'uniswap', 'aave', 'compound-governance-token', 'maker', 'synthetix-network-token',
+    // Tier 4: Layer 1/Layer 2
+    'polygon', 'avalanche-2', 'arbitrum', 'optimism',
+    // Tier 5: Other Important DeFi
+    'the-graph', 'curve-dao-token', 'pancakeswap-token', 'sushiswap'
   ];
 
   const intervalMs = config.UPDATE_INTERVAL;
 
-  console.log(`🔄 Enhanced monitoring activated!`);
-  console.log(`📊 Monitoring ${monitoredTokens.length} tokens across multiple tiers:`);
-  console.log(`   🥇 Tier 1 (Major): 4 tokens`);
-  console.log(`   🥈 Tier 2 (Stable): 3 tokens`);
-  console.log(`   🥉 Tier 3 (DeFi): 6 tokens`);
-  console.log(`   🏅 Tier 4 (Layer1/2): 4 tokens`);
-  console.log(`   🎯 Tier 5 (Others): 4 tokens`);
-  console.log(`   📋 Full list: ${monitoredTokens.join(', ')}`);
+  console.log(`🔄 Enhanced monitoring activated with ${monitoredTokens.length} tokens!`);
 
   const runMonitoring = async () => {
     if (!monitoringActive || !arbitrageCollector) return;
@@ -1546,58 +1697,8 @@ async function startMonitoringLoop() {
       console.log(`📊 [${new Date().toISOString()}] Enhanced collection starting...`);
       const startTime = Date.now();
       
-      // Phased data collection (rate limiting strategy)
-      const allPriceData: PriceData[] = [];
-      
-      // === Phase 1: High Priority Tokens (Tier 1 + 2) ===
-      const highPriorityTokens = monitoredTokens.slice(0, 7);
-      console.log(`   🔴 Phase 1: Collecting ${highPriorityTokens.length} high-priority tokens...`);
-      
-      try {
-        const phase1Data = await arbitrageCollector.collectPriceData(highPriorityTokens);
-        allPriceData.push(...phase1Data);
-        console.log(`   ✅ Phase 1: ${phase1Data.length} price points collected`);
-      } catch (error) {
-        console.error(`   ❌ Phase 1 failed:`, error);
-      }
-
-      await new Promise(resolve => setTimeout(resolve, 1500));
-
-      // === Phase 2: Medium Priority Tokens (Tier 3 + 4) ===
-      const mediumPriorityTokens = monitoredTokens.slice(7, 17);
-      console.log(`   🟡 Phase 2: Collecting ${mediumPriorityTokens.length} medium-priority tokens...`);
-      
-      try {
-        const phase2Data = await arbitrageCollector.collectPriceData(mediumPriorityTokens);
-        allPriceData.push(...phase2Data);
-        console.log(`   ✅ Phase 2: ${phase2Data.length} price points collected`);
-      } catch (error) {
-        console.error(`   ❌ Phase 2 failed:`, error);
-      }
-
-      await new Promise(resolve => setTimeout(resolve, 1000));
-
-      // === Phase 3: Lower Priority Tokens (Tier 5) ===
-      const lowPriorityTokens = monitoredTokens.slice(17);
-      if (lowPriorityTokens.length > 0) {
-        console.log(`   🟢 Phase 3: Collecting ${lowPriorityTokens.length} low-priority tokens...`);
-        
-        try {
-          const phase3Data = await arbitrageCollector.collectPriceData(lowPriorityTokens);
-          allPriceData.push(...phase3Data);
-          console.log(`   ✅ Phase 3: ${phase3Data.length} price points collected`);
-        } catch (error) {
-          console.error(`   ❌ Phase 3 failed:`, error);
-        }
-      }
-
+      const allPriceData = await arbitrageCollector.collectPriceData(monitoredTokens);
       const collectionTime = Date.now() - startTime;
-      const uniqueExchanges = new Set(allPriceData.map(p => p.exchange)).size;
-      
-      console.log(`📈 Enhanced collection completed in ${collectionTime}ms:`);
-      console.log(`   📊 Total price points: ${allPriceData.length}`);
-      console.log(`   🏦 Unique exchanges: ${uniqueExchanges}`);
-      console.log(`   ⚡ Average time per token: ${(collectionTime / monitoredTokens.length).toFixed(1)}ms`);
 
       if (allPriceData.length > 0) {
         const analysisStartTime = Date.now();
@@ -1606,687 +1707,145 @@ async function startMonitoringLoop() {
         
         currentOpportunities = opportunities;
         
-        // === Enhanced Results Analysis ===
-        console// ElizaOS Arbitrage Bot - Enhanced Version with 22+ Token Support
-import dotenv from "dotenv";
-import { createServer } from "http";
-import { readFile } from "fs/promises";
-import { join } from "path";
-import https from "https";
-import { URL } from "url";
-
-dotenv.config();
-
-const PORT = parseInt(process.env.PORT || "3000", 10);
-const RAILWAY_ENVIRONMENT = process.env.RAILWAY_ENVIRONMENT;
-const RAILWAY_SERVICE_NAME = process.env.RAILWAY_SERVICE_NAME;
-
-console.log("🚀 ElizaOS Enhanced Arbitrage Bot Starting...");
-console.log("🌍 Environment:", process.env.NODE_ENV || "development");
-console.log("🚂 Railway:", RAILWAY_ENVIRONMENT || "local");
-console.log("🎯 Enhanced Mode: 22+ Token Monitoring");
-
-// Error handling
-process.on('uncaughtException', (error) => console.error('❌ Uncaught Exception:', error));
-process.on('unhandledRejection', (reason) => console.error('❌ Unhandled Rejection:', reason));
-
-// Types
-interface PriceData {
-  exchange: string;
-  pair: string;
-  price: number;
-  volume: number;
-  timestamp: number;
-}
-
-interface ArbitrageOpportunity {
-  token: string;
-  buyExchange: string;
-  sellExchange: string;
-  buyPrice: number;
-  sellPrice: number;
-  priceDifference: number;
-  potentialProfit: number;
-  estimatedGasCost: number;
-  netProfit: number;
-  profitPercentage: number;
-  confidence: 'low' | 'medium' | 'high';
-  timestamp: number;
-}
-
-interface ValidationResult {
-  isValid: boolean;
-  reason: string;
-  score: number;
-  recommendation: 'ACCEPT' | 'CAUTION' | 'REJECT';
-}
-
-interface Memory {
-  userId: string;
-  roomId: string;
-  content: { text: string; [key: string]: any };
-  [key: string]: any;
-}
-
-interface Character {
-  name: string;
-  bio: string[];
-  description?: string;
-  personality?: string;
-  knowledge?: string[];
-  modelProvider?: string;
-  [key: string]: any;
-}
-
-interface ServiceStatus {
-  elizaos: 'available' | 'limited' | 'unavailable';
-  ai: boolean;
-  blockchain: boolean;
-  priceFeeds: boolean;
-  arbitrageMonitoring: boolean;
-  deployment: 'railway' | 'local';
-}
-
-// Enhanced Config
-const config = {
-  ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY,
-  OPENAI_API_KEY: process.env.OPENAI_API_KEY,
-  COINGECKO_API_KEY: process.env.COINGECKO_API_KEY,
-  MIN_PROFIT_THRESHOLD: parseFloat(process.env.MIN_PROFIT_THRESHOLD || "0.5"),
-  MAX_GAS_PRICE: parseFloat(process.env.MAX_GAS_PRICE || "50"),
-  TRADE_AMOUNT: parseFloat(process.env.TRADE_AMOUNT || "1000"),
-  // Enhanced Filter Settings
-  EMERGENCY_FILTER_ENABLED: process.env.EMERGENCY_FILTER_ENABLED === 'true',
-  MAX_PROFIT_RATE: parseFloat(process.env.MAX_PROFIT_RATE || "50"),
-  STRICT_VALIDATION: process.env.STRICT_VALIDATION === 'true',
-  REJECT_PULSEX: process.env.REJECT_PULSEX === 'true',
-  REJECT_POWSWAP: process.env.REJECT_POWSWAP === 'true',
-  // Enhanced Monitoring Settings
-  ENABLE_EXTENDED_TOKENS: process.env.ENABLE_EXTENDED_TOKENS === 'true',
-  MONITOR_DEFI_TOKENS: process.env.MONITOR_DEFI_TOKENS === 'true',
-  ENHANCED_LOGGING: process.env.ENHANCED_LOGGING === 'true',
-  UPDATE_INTERVAL: parseInt(process.env.UPDATE_INTERVAL || "60000"),
-  MAX_CONCURRENT_REQUESTS: parseInt(process.env.MAX_CONCURRENT_REQUESTS || "3"),
-  COLLECTION_TIMEOUT: parseInt(process.env.COLLECTION_TIMEOUT || "30000")
-};
-
-// Type for config
-type ConfigType = typeof config;
-
-// Global state
-let serviceStatus: ServiceStatus = {
-  elizaos: 'unavailable',
-  ai: false,
-  blockchain: false,
-  priceFeeds: false,
-  arbitrageMonitoring: false,
-  deployment: RAILWAY_ENVIRONMENT ? 'railway' : 'local',
-};
-
-let elizaAgent: any = null;
-let elizaAvailableMethods: string[] = [];
-let arbitrageCollector: ArbitrageDataCollector | null = null;
-let currentOpportunities: ArbitrageOpportunity[] = [];
-let monitoringActive = false;
-
-const defaultCharacter: Character = {
-  name: "EnhancedArbitrageTrader",
-  bio: [
-    "Advanced AI-powered DeFi arbitrage specialist with 22+ token monitoring",
-    "Expert in multi-tier cross-DEX price analysis and opportunity detection"
-  ],
-  description: "Enhanced DeFi arbitrage trading specialist with comprehensive token coverage",
-  personality: "analytical, data-driven, risk-aware, profit-focused, detail-oriented",
-  knowledge: [
-    "Real-time price monitoring across 22+ tokens and multiple DEXs",
-    "Multi-tier arbitrage opportunity detection and analysis", 
-    "Enhanced filtering and validation systems",
-    "Performance optimization and quality assurance"
-  ],
-  modelProvider: "anthropic"
-};
-
-// HTTP helper
-function makeHttpRequest(url: string): Promise<any> {
-  return new Promise((resolve, reject) => {
-    try {
-      const urlObj = new URL(url);
-      const options = {
-        hostname: urlObj.hostname,
-        port: urlObj.port || 443,
-        path: urlObj.pathname + urlObj.search,
-        method: 'GET',
-        headers: { 'User-Agent': 'ElizaEnhancedArbitrageBot/2.0', 'Accept': 'application/json' }
-      };
-
-      const req = https.request(options, (res) => {
-        let data = '';
-        res.on('data', chunk => data += chunk);
-        res.on('end', () => {
-          try { resolve(JSON.parse(data)); }
-          catch (error) { resolve(data); }
-        });
-      });
-
-      req.on('error', reject);
-      req.setTimeout(config.COLLECTION_TIMEOUT, () => { req.destroy(); reject(new Error('Request timeout')); });
-      req.end();
-    } catch (error) { reject(error); }
-  });
-}
-
-// Enhanced Price Ranges Class
-class EnhancedPriceRanges {
-  static readonly EXTENDED_PRICE_RANGES = {
-    // Existing tokens
-    'DAI': { min: 0.90, max: 1.10, type: 'stablecoin' },
-    'USDC': { min: 0.90, max: 1.10, type: 'stablecoin' },
-    'USDT': { min: 0.90, max: 1.10, type: 'stablecoin' },
-    'WBTC': { min: 40000, max: 200000, type: 'bitcoin-pegged' },
-    'ETH': { min: 1500, max: 15000, type: 'major-crypto' },
-    'ETHEREUM': { min: 1500, max: 15000, type: 'major-crypto' },
-    'BITCOIN': { min: 40000, max: 200000, type: 'bitcoin-pegged' },
-    
-    // Enhanced token support
-    'LINK': { min: 5, max: 100, type: 'defi' },
-    'CHAINLINK': { min: 5, max: 100, type: 'defi' },
-    'UNI': { min: 3, max: 50, type: 'defi' },
-    'UNISWAP': { min: 3, max: 50, type: 'defi' },
-    'AAVE': { min: 50, max: 1000, type: 'defi' },
-    'MATIC': { min: 0.3, max: 10, type: 'layer2' },
-    'POLYGON': { min: 0.3, max: 10, type: 'layer2' },
-    'SOL': { min: 10, max: 500, type: 'layer1' },
-    'SOLANA': { min: 10, max: 500, type: 'layer1' },
-    'ADA': { min: 0.1, max: 5, type: 'layer1' },
-    'CARDANO': { min: 0.1, max: 5, type: 'layer1' },
-    'AVAX': { min: 8, max: 200, type: 'layer1' },
-    'AVALANCHE': { min: 8, max: 200, type: 'layer1' },
-    'COMP': { min: 30, max: 800, type: 'defi' },
-    'MKR': { min: 500, max: 5000, type: 'defi' },
-    'MAKER': { min: 500, max: 5000, type: 'defi' },
-    'GRT': { min: 0.05, max: 3, type: 'infrastructure' },
-    'SNX': { min: 1, max: 50, type: 'defi' },
-    'CRV': { min: 0.2, max: 10, type: 'defi' },
-    'SUSHI': { min: 0.3, max: 15, type: 'defi' },
-    'CAKE': { min: 1, max: 30, type: 'defi' },
-    'ARB': { min: 0.5, max: 20, type: 'layer2' },
-    'OP': { min: 1, max: 50, type: 'layer2' }
-  };
-
-  static getPriceRange(token: string): { min: number; max: number; type: string } | null {
-    const normalizedToken = token.toUpperCase();
-    return this.EXTENDED_PRICE_RANGES[normalizedToken] || null;
-  }
-
-  static isValidPrice(token: string, price: number): boolean {
-    const range = this.getPriceRange(token);
-    if (!range) return true;
-    return price >= range.min && price <= range.max;
-  }
-}
-
-// Enhanced Emergency Anomaly Filter
-class EmergencyAnomalyFilter {
-  private readonly PRICE_RANGES = EnhancedPriceRanges.EXTENDED_PRICE_RANGES;
-  private readonly UNRELIABLE_SOURCES = [
-    'pulsex', 'pulseX', 'powswap', 'unknown_dex', 'unknown'
-  ];
-  private readonly MAX_PROFIT_RATE = parseFloat(process.env.MAX_PROFIT_RATE || "50");
-
-  validateOpportunity(opportunity: ArbitrageOpportunity): ValidationResult {
-    const validationResult: ValidationResult = {
-      isValid: false,
-      reason: '',
-      score: 0,
-      recommendation: 'REJECT'
-    };
-
-    // 1. Basic number validation
-    if (!this.isValidNumber(opportunity.buyPrice) || !this.isValidNumber(opportunity.sellPrice)) {
-      validationResult.reason = 'Invalid price data';
-      return validationResult;
-    }
-
-    // 2. Enhanced price range validation
-    const priceValidation = this.validatePriceRange(opportunity.token, opportunity.buyPrice, opportunity.sellPrice);
-    if (!priceValidation.valid) {
-      validationResult.reason = `Price out of range: ${priceValidation.reason}`;
-      return validationResult;
-    }
-
-    // 3. Dynamic profit rate validation based on token type
-    const profitValidation = this.validateProfitRate(opportunity);
-    if (!profitValidation.valid) {
-      validationResult.reason = `Invalid profit rate: ${profitValidation.reason}`;
-      return validationResult;
-    }
-
-    // 4. Source reliability validation
-    const sourceValidation = this.validateSources(opportunity.buyExchange, opportunity.sellExchange);
-    if (!sourceValidation.valid) {
-      validationResult.reason = `Unreliable source: ${sourceValidation.reason}`;
-      return validationResult;
-    }
-
-    // 5. Stablecoin special validation
-    if (this.isStablecoin(opportunity.token)) {
-      const stableValidation = this.validateStablecoin(opportunity);
-      if (!stableValidation.valid) {
-        validationResult.reason = `Stablecoin anomaly: ${stableValidation.reason}`;
-        return validationResult;
-      }
-    }
-
-    // 6. Enhanced scoring
-    validationResult.score = this.calculateScore(opportunity);
-    
-    if (validationResult.score >= 70) {
-      validationResult.isValid = true;
-      validationResult.recommendation = 'ACCEPT';
-      validationResult.reason = 'Passed all validation checks';
-    } else if (validationResult.score >= 40) {
-      validationResult.isValid = false;
-      validationResult.recommendation = 'CAUTION';
-      validationResult.reason = 'Moderate confidence, requires manual review';
-    } else {
-      validationResult.recommendation = 'REJECT';
-      validationResult.reason = 'Low confidence score';
-    }
-
-    return validationResult;
-  }
-
-  private validatePriceRange(token: string, buyPrice: number, sellPrice: number): { valid: boolean; reason: string } {
-    const range = EnhancedPriceRanges.getPriceRange(token);
-    
-    if (!range) {
-      return { valid: true, reason: 'Unknown token, skipping range check' };
-    }
-
-    if (!EnhancedPriceRanges.isValidPrice(token, buyPrice)) {
-      return { 
-        valid: false, 
-        reason: `Buy price $${buyPrice} outside range $${range.min}-$${range.max} for ${range.type}` 
-      };
-    }
-
-    if (!EnhancedPriceRanges.isValidPrice(token, sellPrice)) {
-      return { 
-        valid: false, 
-        reason: `Sell price $${sellPrice} outside range $${range.min}-$${range.max} for ${range.type}` 
-      };
-    }
-
-    return { valid: true, reason: `Price range valid for ${range.type}` };
-  }
-
-  private validateProfitRate(opportunity: ArbitrageOpportunity): { valid: boolean; reason: string } {
-    const range = EnhancedPriceRanges.getPriceRange(opportunity.token);
-    
-    // Token type-specific max profit rates
-    const maxProfitRates = {
-      'stablecoin': 5,      // Stablecoins max 5%
-      'major-crypto': 25,   // Major crypto max 25%
-      'bitcoin-pegged': 25, // Bitcoin-pegged max 25%
-      'defi': 50,          // DeFi tokens max 50%
-      'layer1': 100,       // Layer 1 tokens max 100%
-      'layer2': 100,       // Layer 2 tokens max 100%
-      'infrastructure': 150, // Infrastructure tokens max 150%
-      'altcoin': 200       // Other altcoins max 200%
-    };
-
-    const maxRate = range ? maxProfitRates[range.type] || this.MAX_PROFIT_RATE : this.MAX_PROFIT_RATE;
-    
-    if (opportunity.profitPercentage > maxRate) {
-      return { 
-        valid: false, 
-        reason: `${opportunity.profitPercentage.toFixed(2)}% exceeds max for ${range?.type || 'unknown'} (${maxRate}%)` 
-      };
-    }
-
-    return { valid: true, reason: 'Profit rate acceptable' };
-  }
-
-  private validateSources(buyExchange: string, sellExchange: string): { valid: boolean; reason: string } {
-    const normalizedBuySource = buyExchange.toLowerCase();
-    const normalizedSellSource = sellExchange.toLowerCase();
-
-    if (this.UNRELIABLE_SOURCES.some(source => normalizedBuySource.includes(source))) {
-      return { 
-        valid: false, 
-        reason: `Unreliable buy source: ${buyExchange}` 
-      };
-    }
-
-    if (this.UNRELIABLE_SOURCES.some(source => normalizedSellSource.includes(source))) {
-      return { 
-        valid: false, 
-        reason: `Unreliable sell source: ${sellExchange}` 
-      };
-    }
-
-    if (normalizedBuySource === normalizedSellSource) {
-      return { 
-        valid: false, 
-        reason: 'Same source for buy and sell' 
-      };
-    }
-
-    return { valid: true, reason: 'Sources OK' };
-  }
-
-  private validateStablecoin(opportunity: ArbitrageOpportunity): { valid: boolean; reason: string } {
-    const token = opportunity.token.toUpperCase();
-    
-    if (!this.isStablecoin(token)) {
-      return { valid: true, reason: 'Not a stablecoin' };
-    }
-
-    const expectedPrice = 1.0;
-    const maxDeviation = 0.05; // 5%
-
-    const buyDeviation = Math.abs(opportunity.buyPrice - expectedPrice) / expectedPrice;
-    const sellDeviation = Math.abs(opportunity.sellPrice - expectedPrice) / expectedPrice;
-
-    if (buyDeviation > maxDeviation) {
-      return { 
-        valid: false, 
-        reason: `Buy price deviation ${(buyDeviation * 100).toFixed(2)}% exceeds ${maxDeviation * 100}%` 
-      };
-    }
-
-    if (sellDeviation > maxDeviation) {
-      return { 
-        valid: false, 
-        reason: `Sell price deviation ${(sellDeviation * 100).toFixed(2)}% exceeds ${maxDeviation * 100}%` 
-      };
-    }
-
-    return { valid: true, reason: 'Stablecoin prices within acceptable range' };
-  }
-
-  private calculateScore(opportunity: ArbitrageOpportunity): number {
-    let score = 0;
-
-    // Profit rate score (adaptive based on token type)
-    const range = EnhancedPriceRanges.getPriceRange(opportunity.token);
-    const tokenType = range?.type || 'unknown';
-    
-    if (tokenType === 'stablecoin') {
-      if (opportunity.profitPercentage >= 0.5 && opportunity.profitPercentage <= 2) score += 40;
-      else if (opportunity.profitPercentage <= 5) score += 20;
-    } else if (tokenType === 'major-crypto' || tokenType === 'bitcoin-pegged') {
-      if (opportunity.profitPercentage >= 1 && opportunity.profitPercentage <= 10) score += 40;
-      else if (opportunity.profitPercentage <= 25) score += 20;
-    } else {
-      if (opportunity.profitPercentage >= 2 && opportunity.profitPercentage <= 15) score += 40;
-      else if (opportunity.profitPercentage <= 50) score += 20;
-    }
-
-    // Source reliability score
-    const sourceReliability = this.getSourceReliability(opportunity.buyExchange) + 
-                            this.getSourceReliability(opportunity.sellExchange);
-    score += sourceReliability;
-
-    // Token type bonus
-    const typeBonus = {
-      'stablecoin': 20,
-      'major-crypto': 15,
-      'bitcoin-pegged': 15,
-      'defi': 10,
-      'layer1': 8,
-      'layer2': 8,
-      'infrastructure': 5
-    };
-    score += typeBonus[tokenType] || 0;
-
-    return Math.max(0, Math.min(100, score));
-  }
-
-  private isValidNumber(value: number): boolean {
-    return typeof value === 'number' && !isNaN(value) && value > 0 && isFinite(value);
-  }
-
-  private isStablecoin(token: string): boolean {
-    const stablecoins = ['DAI', 'USDC', 'USDT', 'BUSD', 'FRAX'];
-    return stablecoins.includes(token.toUpperCase());
-  }
-
-  private getSourceReliability(source: string): number {
-    const reliability: { [key: string]: number } = {
-      'coingecko': 15,
-      'coingecko_average': 15,
-      'binance': 12,
-      'coinbase': 12,
-      'uniswap': 10,
-      'uniswap_v3': 10,
-      'sushiswap': 8,
-      'curve': 8,
-      'pancakeswap': 6,
-      'quickswap': 5,
-      'pulsex': 0,
-      'powswap': 0
-    };
-
-    return reliability[source.toLowerCase()] || 5;
-  }
-
-  filterOpportunities(opportunities: ArbitrageOpportunity[]): {
-    accepted: ArbitrageOpportunity[];
-    rejected: ArbitrageOpportunity[];
-    summary: {
-      total: number;
-      accepted: number;
-      rejected: number;
-      filterEfficiency: string;
-    };
-  } {
-    const accepted: ArbitrageOpportunity[] = [];
-    const rejected: ArbitrageOpportunity[] = [];
-
-    console.log(`🔍 Enhanced filtering ${opportunities.length} opportunities...`);
-
-    for (const opportunity of opportunities) {
-      const validation = this.validateOpportunity(opportunity);
-      
-      if (validation.isValid) {
-        accepted.push({
-          ...opportunity,
-          confidence: this.mapScoreToConfidence(validation.score)
-        });
-        if (config.ENHANCED_LOGGING) {
-          console.log(`✅ ACCEPTED: ${opportunity.token} - ${validation.reason} (Score: ${validation.score})`);
-        }
-      } else {
-        rejected.push(opportunity);
-        if (config.ENHANCED_LOGGING) {
-          console.log(`❌ REJECTED: ${opportunity.token} - ${validation.reason}`);
-        }
-      }
-    }
-
-    const summary = {
-      total: opportunities.length,
-      accepted: accepted.length,
-      rejected: rejected.length,
-      filterEfficiency: ((rejected.length / opportunities.length) * 100).toFixed(1)
-    };
-
-    console.log(`📊 Enhanced Filter Results: ${accepted.length} accepted, ${rejected.length} rejected (${summary.filterEfficiency}% filtered out)`);
-
-    return { accepted: accepted.sort((a, b) => b.netProfit - a.netProfit), rejected, summary };
-  }
-
-  private mapScoreToConfidence(score: number): 'low' | 'medium' | 'high' {
-    if (score >= 70) return 'high';
-    if (score >= 40) return 'medium';
-    return 'low';
-  }
-}
-
-// Enhanced Arbitrage Data Collector
-class ArbitrageDataCollector {
-  constructor(private config: ConfigType) {}
-
-  async collectPriceData(tokens: string[]): Promise<PriceData[]> {
-    const priceData: PriceData[] = [];
-    const startTime = Date.now();
-    
-    try {
-      if (config.ENHANCED_LOGGING) {
-        console.log(`📊 Enhanced price collection for ${tokens.length} tokens: ${tokens.join(', ')}`);
-      }
-
-      // CoinGecko API (high precision data)
-      if (this.config.COINGECKO_API_KEY) {
-        try {
-          console.log(`   🥇 Fetching high-precision data from CoinGecko...`);
-          const cgStartTime = Date.now();
-          const cgPrices = await this.getCoinGeckoPrices(tokens);
-          const cgTime = Date.now() - cgStartTime;
-          
-          priceData.push(...cgPrices);
-          console.log(`   ✅ CoinGecko: ${cgPrices.length} price points in ${cgTime}ms`);
-          
-          if (config.ENHANCED_LOGGING && cgPrices.length > 0) {
-            const tokensSources = cgPrices.reduce((acc, price) => {
-              const token = price.pair.split('/')[0];
-              if (!acc[token]) acc[token] = [];
-              acc[token].push(price.exchange);
-              return acc;
-            }, {});
-            
-            Object.entries(tokensSources).forEach(([token, sources]) => {
-              console.log(`      ${token}: ${(sources as string[]).length} sources`);
-            });
-          }
-          
-        } catch (cgError) {
-          console.warn(`   ⚠️ CoinGecko collection failed:`, cgError.message);
-        }
+        console.log(`🎯 Enhanced analysis (${analysisTime}ms):`);
+        console.log(`   💰 Total opportunities: ${opportunities.length}`);
         
-        // Rate limiting
-        await new Promise(resolve => setTimeout(resolve, 500));
-      }
-
-      // DEX price data collection
-      try {
-        console.log(`   🌐 Fetching decentralized data from DEX sources...`);
-        const dexStartTime = Date.now();
-        const dexPrices = await this.getDEXPrices(tokens);
-        const dexTime = Date.now() - dexStartTime;
-        
-        priceData.push(...dexPrices);
-        console.log(`   ✅ DEX Sources: ${dexPrices.length} price points in ${dexTime}ms`);
-        
-        if (config.ENHANCED_LOGGING && dexPrices.length > 0) {
-          const dexBreakdown = dexPrices.reduce((acc, price) => {
-            if (!acc[price.exchange]) acc[price.exchange] = 0;
-            acc[price.exchange]++;
-            return acc;
-          }, {});
+        if (opportunities.length > 0) {
+          const highConf = opportunities.filter(o => o.confidence === 'high');
+          const mediumConf = opportunities.filter(o => o.confidence === 'medium');
+          const lowConf = opportunities.filter(o => o.confidence === 'low');
           
-          const dexCount = Object.keys(dexBreakdown).length;
-          console.log(`      📊 Active DEXs: ${dexCount} exchanges`);
-          Object.entries(dexBreakdown).forEach(([dex, count]) => {
-            console.log(`         ${dex}: ${count} pairs`);
+          console.log(`   🔴 High confidence: ${highConf.length}`);
+          console.log(`   🟡 Medium confidence: ${mediumConf.length}`);
+          console.log(`   🟢 Low confidence: ${lowConf.length}`);
+
+          console.log(`   🏆 Top opportunities:`);
+          opportunities.slice(0, 3).forEach((opp, index) => {
+            const profit = opp.profitPercentage.toFixed(2);
+            const netProfit = opp.netProfit.toFixed(2);
+            console.log(`      ${index + 1}. ${opp.token}: ${profit}% profit (${netProfit}) | ${opp.buyExchange} → ${opp.sellExchange}`);
           });
         }
-        
-      } catch (dexError) {
-        console.warn(`   ⚠️ DEX collection failed:`, dexError.message);
+
+        const totalProcessingTime = Date.now() - startTime;
+        console.log(`⚡ Performance: ${totalProcessingTime}ms total (${opportunities.length} opportunities)`);
+
+      } else {
+        console.log(`❌ No price data collected - check API connections`);
       }
 
-      const totalTime = Date.now() - startTime;
-      const avgTimePerToken = totalTime / tokens.length;
-      
-      // Enhanced collection summary
-      console.log(`📈 Enhanced collection summary:`);
-      console.log(`   ⏱️  Total time: ${totalTime}ms (${avgTimePerToken.toFixed(1)}ms per token)`);
-      console.log(`   📊 Total data points: ${priceData.length}`);
-      console.log(`   🏦 Unique exchanges: ${new Set(priceData.map(p => p.exchange)).size}`);
-      console.log(`   💰 Tokens with data: ${new Set(priceData.map(p => p.pair.split('/')[0])).size}/${tokens.length}`);
-
-      // Data quality analysis
-      if (config.ENHANCED_LOGGING) {
-        const qualityMetrics = this.analyzeDataQuality(priceData);
-        console.log(`   🎯 Data quality score: ${qualityMetrics.score}/100`);
-        
-        if (qualityMetrics.issues.length > 0) {
-          console.log(`   ⚠️ Quality issues detected:`);
-          qualityMetrics.issues.forEach(issue => console.log(`      • ${issue}`));
-        }
-      }
-
-      const successRate = (priceData.length > 0 ? 
-        (new Set(priceData.map(p => p.pair.split('/')[0])).size / tokens.length) * 100 : 0);
-      console.log(`   📊 Collection success rate: ${successRate.toFixed(1)}%`);
-
-      return priceData;
-
-    } catch (error) {
-      const totalTime = Date.now() - startTime;
-      console.error(`❌ Enhanced price collection failed after ${totalTime}ms:`, error);
-      
-      if (config.ENHANCED_LOGGING) {
-        console.log(`💡 Recovery suggestions:`);
-        if (priceData.length > 0) {
-          console.log(`   • Partial data available: ${priceData.length} points`);
-          console.log(`   • Consider proceeding with available data`);
-        } else {
-          console.log(`   • No data collected - check network connectivity`);
-          console.log(`   • Verify API keys and endpoints`);
-          console.log(`   • Consider fallback data sources`);
-        }
-      }
-      
-      return priceData;
+    } catch (error: any) {
+      console.error("❌ Enhanced monitoring error:", error);
     }
+  };
+
+  console.log(`🚀 Starting enhanced monitoring loop...`);
+  await runMonitoring();
+  
+  const intervalId = setInterval(runMonitoring, intervalMs);
+  (global as any).monitoringIntervalId = intervalId;
+  
+  console.log(`✅ Enhanced monitoring loop established (${intervalMs/1000}s intervals)`);
+}
+
+async function toggleArbitrageMonitoring(): Promise<string> {
+  if (!arbitrageCollector) return "❌ アービトラージデータ収集器が初期化されていません";
+
+  if (monitoringActive) {
+    monitoringActive = false;
+    serviceStatus.arbitrageMonitoring = false;
+    return "⏹️ 拡張アービトラージ監視を停止しました";
+  } else {
+    monitoringActive = true;
+    serviceStatus.arbitrageMonitoring = true;
+    startMonitoringLoop();
+    return "▶️ 拡張アービトラージ監視を開始しました (22+ tokens)";
   }
+}
 
-  private analyzeDataQuality(priceData: PriceData[]): { score: number; issues: string[] } {
-    const issues: string[] = [];
-    let score = 100;
-
-    if (priceData.length < 10) {
-      issues.push(`Low data volume: ${priceData.length} points`);
-      score -= 20;
+// Chat Handler
+async function handleChat(message: string, userId: string = "user") {
+  try {
+    const lowerMessage = message.toLowerCase();
+    
+    if (lowerMessage.includes('監視開始') || lowerMessage.includes('start monitoring')) {
+      const result = await toggleArbitrageMonitoring();
+      return {
+        response: result,
+        timestamp: new Date().toISOString(),
+        agent: "EnhancedArbitrageTrader",
+        mode: "Enhanced Command Execution",
+        command: "start_enhanced_monitoring",
+        tokenCount: Object.keys(EnhancedPriceRanges.EXTENDED_PRICE_RANGES).length
+      };
     }
 
-    const invalidPrices = priceData.filter(p => p.price <= 0 || !isFinite(p.price));
-    if (invalidPrices.length > 0) {
-      issues.push(`Invalid prices detected: ${invalidPrices.length} items`);
-      score -= 15;
+    if (lowerMessage.includes('監視停止') || lowerMessage.includes('stop monitoring')) {
+      if (monitoringActive) {
+        monitoringActive = false;
+        serviceStatus.arbitrageMonitoring = false;
+        if ((global as any).monitoringIntervalId) {
+          clearInterval((global as any).monitoringIntervalId);
+        }
+        return {
+          response: "⏹️ 拡張アービトラージ監視を停止しました",
+          timestamp: new Date().toISOString(),
+          agent: "EnhancedArbitrageTrader",
+          mode: "Enhanced Command Execution"
+        };
+      } else {
+        return {
+          response: "⚠️ 監視は既に停止しています",
+          timestamp: new Date().toISOString(),
+          agent: "EnhancedArbitrageTrader"
+        };
+      }
     }
 
-    const now = Date.now();
-    const oldData = priceData.filter(p => now - p.timestamp > 300000);
-    if (oldData.length > 0) {
-      issues.push(`Stale data detected: ${oldData.length} items > 5min old`);
-      score -= 10;
+    if (lowerMessage.includes('価格収集') || lowerMessage.includes('collect prices')) {
+      if (!arbitrageCollector) {
+        return {
+          response: "❌ 拡張アービトラージデータ収集器が初期化されていません",
+          timestamp: new Date().toISOString(),
+          agent: "EnhancedArbitrageTrader"
+        };
+      }
+
+      const tokens = ['ethereum', 'bitcoin', 'usd-coin', 'chainlink', 'uniswap', 'polygon'];
+      const priceData = await arbitrageCollector.collectPriceData(tokens);
+      const opportunities = arbitrageCollector.analyzeArbitrageOpportunities(priceData);
+      currentOpportunities = opportunities;
+
+      return {
+        response: `📊 拡張価格データ収集完了\n\n📈 収集データ: ${priceData.length}件\n🎯 検出機会: ${opportunities.length}件\n🪙 対象トークン: ${tokens.length}件\n${opportunities.length > 0 ? `\n上位機会:\n${opportunities.slice(0, 3).map((opp, i) => `${i + 1}. ${opp.token}: ${opp.profitPercentage.toFixed(2)}% (${opp.confidence})`).join('\n')}` : ''}`,
+        timestamp: new Date().toISOString(),
+        agent: "EnhancedArbitrageTrader",
+        mode: "Enhanced Data Collection"
+      };
     }
 
-    const uniqueExchanges = new Set(priceData.map(p => p.exchange)).size;
-    if (uniqueExchanges < 3) {
-      issues.push(`Low exchange diversity: only ${uniqueExchanges} sources`);
-      score -= 15;
-    }
+    const response = await aiService.generateResponse(message);
 
-    const noVolumeData = priceData.filter(p => !p.volume || p.volume <= 0).length;
-    if (noVolumeData > priceData.length * 0.5) {
-      issues.push(`Missing volume data: ${noVolumeData} items`);
-      score -= 10;
-    }
-
-    return { score: Math.max(0, score), issues };
+    return {
+      response,
+      timestamp: new Date().toISOString(),
+      agent: "EnhancedArbitrageTrader",
+      mode: serviceStatus.elizaos === 'available' ? "Enhanced ElizaOS" : serviceStatus.ai ? "Enhanced AI" : "Enhanced Rule Based",
+      elizaos_status: serviceStatus.elizaos,
+      arbitrage_opportunities: currentOpportunities.length,
+      monitoring_active: monitoringActive,
+      enhanced_features: {
+        total_tokens_supported: Object.keys(EnhancedPriceRanges.EXTENDED_PRICE_RANGES).length,
+        filtering_enabled: config.EMERGENCY_FILTER_ENABLED,
+        extended_tokens_enabled: config.ENABLE_EXTENDED_TOKENS
+      }
+    };
+  } catch (error: any) {
+    console.error("Enhanced chat error:", error);
+    return {
+      response: "申し訳ありませんが、処理中にエラーが発生しました。",
+      error: error instanceof Error ? error.message : String(error),
+      timestamp: new Date().toISOString()
+    };
   }
-
-  private async getCoinGeckoPrices(tokens: string[]): Promise<PriceData[]> {
-    try {
-      const tokenIds = tokens.join(',');
-      const url = `https://api.coingecko.com/api/v3/simple/price?ids=${tokenIds}&vs_currencies=usd&include_24hr_vol=true&x_cg_demo_api_key=${this.config.COINGECKO_API_KEY}`;
-      const response = await makeHttpRequest(url);
-      const priceData: PriceData[] = [];
-
-      for (const [token, data] of Object.entries(response)) {
-        if (data && typeof data === '
+}
