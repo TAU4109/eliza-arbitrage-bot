@@ -1,38 +1,32 @@
-// ElizaOS Arbitrage Bot - Data Collection Integration
+// ElizaOS Arbitrage Bot - Complete Single File Version
 import dotenv from "dotenv";
 import { createServer } from "http";
 import { readFile } from "fs/promises";
 import { join } from "path";
 import https from "https";
+import { URL } from "url";
 
-// Load environment variables
 dotenv.config();
 
 const PORT = parseInt(process.env.PORT || "3000", 10);
 const RAILWAY_ENVIRONMENT = process.env.RAILWAY_ENVIRONMENT;
 const RAILWAY_SERVICE_NAME = process.env.RAILWAY_SERVICE_NAME;
 
-console.log("🚀 ElizaOS Arbitrage Bot with Data Collection...");
+console.log("🚀 ElizaOS Complete Arbitrage Bot Starting...");
 console.log("🌍 Environment:", process.env.NODE_ENV || "development");
-console.log("🚂 Railway Environment:", RAILWAY_ENVIRONMENT || "local");
+console.log("🚂 Railway:", RAILWAY_ENVIRONMENT || "local");
 
-// エラーハンドリング
-process.on('uncaughtException', (error) => {
-  console.error('❌ Uncaught Exception:', error);
-});
+// Error handling
+process.on('uncaughtException', (error) => console.error('❌ Uncaught Exception:', error));
+process.on('unhandledRejection', (reason) => console.error('❌ Unhandled Rejection:', reason));
 
-process.on('unhandledRejection', (reason, promise) => {
-  console.error('❌ Unhandled Rejection:', reason);
-});
-
-// データ型定義
+// Types
 interface PriceData {
   exchange: string;
   pair: string;
   price: number;
   volume: number;
   timestamp: number;
-  gasEstimate?: number;
 }
 
 interface ArbitrageOpportunity {
@@ -53,10 +47,7 @@ interface ArbitrageOpportunity {
 interface Memory {
   userId: string;
   roomId: string;
-  content: {
-    text: string;
-    [key: string]: any;
-  };
+  content: { text: string; [key: string]: any };
   [key: string]: any;
 }
 
@@ -67,25 +58,9 @@ interface Character {
   personality?: string;
   knowledge?: string[];
   modelProvider?: string;
-  plugins?: string[];
-  settings?: { [key: string]: any };
   [key: string]: any;
 }
 
-// 環境変数設定
-const config = {
-  ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY,
-  OPENAI_API_KEY: process.env.OPENAI_API_KEY,
-  INFURA_PROJECT_ID: process.env.INFURA_PROJECT_ID,
-  ALCHEMY_API_KEY: process.env.ALCHEMY_API_KEY,
-  COINGECKO_API_KEY: process.env.COINGECKO_API_KEY,
-  DEXSCREENER_API: process.env.DEXSCREENER_API,
-  MIN_PROFIT_THRESHOLD: parseFloat(process.env.MIN_PROFIT_THRESHOLD || "0.5"),
-  MAX_GAS_PRICE: parseFloat(process.env.MAX_GAS_PRICE || "50"),
-  TRADE_AMOUNT: parseFloat(process.env.TRADE_AMOUNT || "1000"),
-};
-
-// サービス状態管理
 interface ServiceStatus {
   elizaos: 'available' | 'limited' | 'unavailable';
   ai: boolean;
@@ -95,6 +70,17 @@ interface ServiceStatus {
   deployment: 'railway' | 'local';
 }
 
+// Config
+const config = {
+  ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY,
+  OPENAI_API_KEY: process.env.OPENAI_API_KEY,
+  COINGECKO_API_KEY: process.env.COINGECKO_API_KEY,
+  MIN_PROFIT_THRESHOLD: parseFloat(process.env.MIN_PROFIT_THRESHOLD || "0.5"),
+  MAX_GAS_PRICE: parseFloat(process.env.MAX_GAS_PRICE || "50"),
+  TRADE_AMOUNT: parseFloat(process.env.TRADE_AMOUNT || "1000"),
+};
+
+// Global state
 let serviceStatus: ServiceStatus = {
   elizaos: 'unavailable',
   ai: false,
@@ -104,14 +90,12 @@ let serviceStatus: ServiceStatus = {
   deployment: RAILWAY_ENVIRONMENT ? 'railway' : 'local',
 };
 
-// グローバル変数
 let elizaAgent: any = null;
 let elizaAvailableMethods: string[] = [];
 let arbitrageCollector: ArbitrageDataCollector | null = null;
 let currentOpportunities: ArbitrageOpportunity[] = [];
 let monitoringActive = false;
 
-// デフォルトキャラクター
 const defaultCharacter: Character = {
   name: "ArbitrageTrader",
   bio: [
@@ -123,14 +107,12 @@ const defaultCharacter: Character = {
   knowledge: [
     "Real-time price monitoring across multiple DEXs",
     "Arbitrage opportunity detection and analysis",
-    "Gas cost optimization and profit calculation",
-    "Risk assessment and confidence scoring",
-    "DEX liquidity analysis and volume tracking"
+    "Gas cost optimization and profit calculation"
   ],
   modelProvider: "anthropic"
 };
 
-// HTTP request helper
+// HTTP helper
 function makeHttpRequest(url: string): Promise<any> {
   return new Promise((resolve, reject) => {
     try {
@@ -140,59 +122,40 @@ function makeHttpRequest(url: string): Promise<any> {
         port: urlObj.port || 443,
         path: urlObj.pathname + urlObj.search,
         method: 'GET',
-        headers: {
-          'User-Agent': 'ElizaArbitrageBot/1.0',
-          'Accept': 'application/json'
-        }
+        headers: { 'User-Agent': 'ElizaArbitrageBot/1.0', 'Accept': 'application/json' }
       };
 
       const req = https.request(options, (res) => {
         let data = '';
         res.on('data', chunk => data += chunk);
         res.on('end', () => {
-          try {
-            resolve(JSON.parse(data));
-          } catch (error) {
-            resolve(data);
-          }
+          try { resolve(JSON.parse(data)); }
+          catch (error) { resolve(data); }
         });
       });
 
       req.on('error', reject);
-      req.setTimeout(15000, () => {
-        req.destroy();
-        reject(new Error('Request timeout'));
-      });
+      req.setTimeout(15000, () => { req.destroy(); reject(new Error('Request timeout')); });
       req.end();
-    } catch (error) {
-      reject(error);
-    }
+    } catch (error) { reject(error); }
   });
 }
 
-// アービトラージデータ収集クラス
+// Arbitrage Data Collector
 class ArbitrageDataCollector {
-  private config: typeof config;
+  constructor(private config: typeof config) {}
 
-  constructor(configData: typeof config) {
-    this.config = configData;
-  }
-
-  // 複数の取引所から価格データを収集
   async collectPriceData(tokens: string[]): Promise<PriceData[]> {
     const priceData: PriceData[] = [];
-
     try {
       console.log(`📊 Collecting price data for tokens: ${tokens.join(', ')}`);
 
-      // CoinGecko データ（CEX価格の参考）
       if (this.config.COINGECKO_API_KEY) {
         const cgPrices = await this.getCoinGeckoPrices(tokens);
         priceData.push(...cgPrices);
         console.log(`✅ CoinGecko: ${cgPrices.length} price points`);
       }
 
-      // DEX価格データ（DEXScreener使用）
       const dexPrices = await this.getDEXPrices(tokens);
       priceData.push(...dexPrices);
       console.log(`✅ DEX Data: ${dexPrices.length} price points`);
@@ -204,13 +167,10 @@ class ArbitrageDataCollector {
     }
   }
 
-  // CoinGecko APIから価格取得
   private async getCoinGeckoPrices(tokens: string[]): Promise<PriceData[]> {
     try {
       const tokenIds = tokens.join(',');
-      const apiKey = this.config.COINGECKO_API_KEY;
-      const url = `https://api.coingecko.com/api/v3/simple/price?ids=${tokenIds}&vs_currencies=usd&include_24hr_vol=true&x_cg_demo_api_key=${apiKey}`;
-      
+      const url = `https://api.coingecko.com/api/v3/simple/price?ids=${tokenIds}&vs_currencies=usd&include_24hr_vol=true&x_cg_demo_api_key=${this.config.COINGECKO_API_KEY}`;
       const response = await makeHttpRequest(url);
       const priceData: PriceData[] = [];
 
@@ -225,7 +185,6 @@ class ArbitrageDataCollector {
           });
         }
       }
-
       return priceData;
     } catch (error) {
       console.error("CoinGecko price fetch error:", error);
@@ -233,16 +192,14 @@ class ArbitrageDataCollector {
     }
   }
 
-  // DEX価格データ取得（DEXScreener API使用）
   private async getDEXPrices(tokens: string[]): Promise<PriceData[]> {
     try {
-      // 主要なトークンアドレス
       const tokenAddresses: { [key: string]: string } = {
-        'ethereum': '0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2', // WETH
-        'usd-coin': '0xA0b86a33E6417b12A13D8C7e5F5D2a47D9ff0B84', // USDC
-        'bitcoin': '0x2260FAC5E5542a773Aa44fBCfeDf7C193bc2C599', // WBTC
-        'dai': '0x6B175474E89094C44Da98b954EedeAC495271d0F', // DAI
-        'chainlink': '0x514910771AF9Ca656af840dff83E8264EcF986CA' // LINK
+        'ethereum': '0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2',
+        'usd-coin': '0xA0b86a33E6417b12A13D8C7e5F5D2a47D9ff0B84',
+        'bitcoin': '0x2260FAC5E5542a773Aa44fBCfeDf7C193bc2C599',
+        'dai': '0x6B175474E89094C44Da98b954EedeAC495271d0F',
+        'chainlink': '0x514910771AF9Ca656af840dff83E8264EcF986CA'
       };
 
       const priceData: PriceData[] = [];
@@ -250,21 +207,15 @@ class ArbitrageDataCollector {
       for (const token of tokens) {
         if (tokenAddresses[token]) {
           const address = tokenAddresses[token];
-          
           try {
             const url = `https://api.dexscreener.com/latest/dex/tokens/${address}`;
             const response = await makeHttpRequest(url);
 
             if (response.pairs && Array.isArray(response.pairs)) {
-              // 主要なDEXからデータを抽出
-              const dexFilter = ['uniswap', 'sushiswap', 'pancakeswap'];
-              
-              for (const pair of response.pairs.slice(0, 5)) { // 上位5ペアのみ
+              for (const pair of response.pairs.slice(0, 5)) {
                 if (pair.priceUsd && parseFloat(pair.priceUsd) > 0) {
-                  const dexId = pair.dexId || 'unknown';
-                  
                   priceData.push({
-                    exchange: dexId,
+                    exchange: pair.dexId || 'unknown',
                     pair: `${pair.baseToken?.symbol || token}/${pair.quoteToken?.symbol || 'USD'}`,
                     price: parseFloat(pair.priceUsd),
                     volume: parseFloat(pair.volume?.h24 || '0'),
@@ -276,12 +227,9 @@ class ArbitrageDataCollector {
           } catch (tokenError) {
             console.error(`Error fetching DEX data for ${token}:`, tokenError);
           }
-
-          // API制限を考慮して少し待機
           await new Promise(resolve => setTimeout(resolve, 200));
         }
       }
-
       return priceData;
     } catch (error) {
       console.error("DEX price fetch error:", error);
@@ -289,36 +237,28 @@ class ArbitrageDataCollector {
     }
   }
 
-  // アービトラージ機会の分析
   analyzeArbitrageOpportunities(priceData: PriceData[]): ArbitrageOpportunity[] {
     const opportunities: ArbitrageOpportunity[] = [];
-    
-    // トークンごとにグループ化
     const tokenGroups: { [key: string]: PriceData[] } = {};
     
     for (const data of priceData) {
       const token = data.pair.split('/')[0].toLowerCase();
-      if (!tokenGroups[token]) {
-        tokenGroups[token] = [];
-      }
+      if (!tokenGroups[token]) tokenGroups[token] = [];
       tokenGroups[token].push(data);
     }
 
     for (const [token, prices] of Object.entries(tokenGroups)) {
       if (prices.length < 2) continue;
 
-      // 価格でソート
       const sortedPrices = prices.sort((a, b) => a.price - b.price);
       const cheapest = sortedPrices[0];
       const mostExpensive = sortedPrices[sortedPrices.length - 1];
 
-      // 同じ取引所は除外
       if (cheapest.exchange === mostExpensive.exchange) continue;
 
       const priceDifference = mostExpensive.price - cheapest.price;
       const profitPercentage = (priceDifference / cheapest.price) * 100;
 
-      // 最小利益閾値をチェック
       if (profitPercentage >= this.config.MIN_PROFIT_THRESHOLD) {
         const estimatedGasCost = this.estimateGasCost();
         const potentialProfit = (this.config.TRADE_AMOUNT * profitPercentage) / 100;
@@ -346,37 +286,23 @@ class ArbitrageDataCollector {
     return opportunities.sort((a, b) => b.netProfit - a.netProfit);
   }
 
-  // ガス代推定（簡略化）
   private estimateGasCost(): number {
     const averageGasPrice = 30; // Gwei
-    const gasLimit = 300000; // 複雑なDEX取引の推定
-    const ethPrice = 2500; // USD (動的に取得することを推奨)
-    
-    return (averageGasPrice * gasLimit * ethPrice) / 1e9; // USD
+    const gasLimit = 300000;
+    const ethPrice = 2500;
+    return (averageGasPrice * gasLimit * ethPrice) / 1e9;
   }
 
-  // 機会の信頼度計算
-  private calculateConfidence(
-    cheapest: PriceData, 
-    mostExpensive: PriceData, 
-    profitPercentage: number
-  ): 'low' | 'medium' | 'high' {
+  private calculateConfidence(cheapest: PriceData, mostExpensive: PriceData, profitPercentage: number): 'low' | 'medium' | 'high' {
     let score = 0;
-
-    // 価格差が大きいほど高スコア
     if (profitPercentage > 2) score += 2;
     else if (profitPercentage > 1) score += 1;
-
-    // 取引量が大きいほど高スコア
     if (cheapest.volume > 100000 && mostExpensive.volume > 100000) score += 2;
     else if (cheapest.volume > 10000 && mostExpensive.volume > 10000) score += 1;
-
-    // 有名なDEX同士なら高スコア
+    
     const reputableExchanges = ['uniswap', 'sushiswap', 'pancakeswap', 'coingecko_average'];
     if (reputableExchanges.some(ex => cheapest.exchange.includes(ex)) && 
-        reputableExchanges.some(ex => mostExpensive.exchange.includes(ex))) {
-      score += 1;
-    }
+        reputableExchanges.some(ex => mostExpensive.exchange.includes(ex))) score += 1;
 
     if (score >= 4) return 'high';
     if (score >= 2) return 'medium';
@@ -384,7 +310,7 @@ class ArbitrageDataCollector {
   }
 }
 
-// ElizaOS 初期化
+// ElizaOS initialization
 async function initializeElizaOS(): Promise<boolean> {
   try {
     console.log("🔄 Starting ElizaOS initialization...");
@@ -399,12 +325,8 @@ async function initializeElizaOS(): Promise<boolean> {
     }
 
     const AgentRuntime = elizaModule.AgentRuntime || elizaModule.default?.AgentRuntime;
-    
-    if (!AgentRuntime) {
-      throw new Error("AgentRuntime not available");
-    }
+    if (!AgentRuntime) throw new Error("AgentRuntime not available");
 
-    // キャラクター設定のロード
     let characterConfig: Character;
     try {
       const characterPath = join(process.cwd(), 'characters', 'arbitrage-trader.character.json');
@@ -412,11 +334,10 @@ async function initializeElizaOS(): Promise<boolean> {
       characterConfig = JSON.parse(characterData);
       console.log("✅ Character configuration loaded:", characterConfig.name);
     } catch (error) {
-      console.log("⚠️ Using enhanced default character configuration");
+      console.log("⚠️ Using default character configuration");
       characterConfig = defaultCharacter;
     }
 
-    // AgentRuntime インスタンス作成
     try {
       elizaAgent = new AgentRuntime({
         character: characterConfig,
@@ -431,13 +352,11 @@ async function initializeElizaOS(): Promise<boolean> {
       serviceStatus.elizaos = 'available';
       console.log("✅ ElizaOS initialization completed successfully");
       return true;
-
     } catch (runtimeError) {
       console.log("⚠️ AgentRuntime creation failed:", runtimeError);
       serviceStatus.elizaos = 'limited';
       return false;
     }
-
   } catch (error) {
     console.log("❌ ElizaOS initialization failed:", error instanceof Error ? error.message : String(error));
     serviceStatus.elizaos = 'unavailable';
@@ -445,14 +364,12 @@ async function initializeElizaOS(): Promise<boolean> {
   }
 }
 
-// AI Chat Service（アービトラージデータ統合）
+// AI Chat Service
 class AIChatService {
   async generateResponse(message: string, context?: string): Promise<string> {
-    // アービトラージ関連の質問を検出
     const arbitrageContext = this.buildArbitrageContext(message);
     const fullContext = [context, arbitrageContext].filter(Boolean).join(' ');
 
-    // ElizaOSエージェントを試行
     if (serviceStatus.elizaos === 'available' && elizaAgent) {
       try {
         return await this.useElizaAgent(message, fullContext);
@@ -461,7 +378,6 @@ class AIChatService {
       }
     }
 
-    // フォールバック: 直接API
     if (config.ANTHROPIC_API_KEY) {
       try {
         return await this.callAnthropic(message, fullContext);
@@ -477,27 +393,19 @@ class AIChatService {
     const lowerMessage = message.toLowerCase();
     let context = "";
 
-    // 現在の機会情報を追加
     if (currentOpportunities.length > 0 && 
         (lowerMessage.includes('機会') || lowerMessage.includes('opportunity') || 
          lowerMessage.includes('利益') || lowerMessage.includes('profit'))) {
       
       const topOpps = currentOpportunities.slice(0, 3);
       context += `現在のアービトラージ機会: `;
-      
       topOpps.forEach((opp, i) => {
         context += `${i + 1}. ${opp.token}: ${opp.buyExchange}($${opp.buyPrice.toFixed(4)}) → ${opp.sellExchange}($${opp.sellPrice.toFixed(4)}) 利益${opp.profitPercentage.toFixed(2)}% `;
       });
     }
 
-    // 監視状態情報
     if (lowerMessage.includes('監視') || lowerMessage.includes('monitoring')) {
       context += `監視状態: ${monitoringActive ? 'アクティブ' : '停止中'}. `;
-    }
-
-    // サービス状態情報
-    if (lowerMessage.includes('状態') || lowerMessage.includes('status')) {
-      context += `価格データ: ${serviceStatus.priceFeeds ? '利用可能' : '制限中'}, アービトラージ監視: ${serviceStatus.arbitrageMonitoring ? '動作中' : '停止中'}. `;
     }
 
     return context;
@@ -510,11 +418,7 @@ class AIChatService {
       content: {
         text: message,
         context: context || "",
-        arbitrageData: {
-          opportunities: currentOpportunities.slice(0, 5),
-          monitoringActive,
-          serviceStatus
-        }
+        arbitrageData: { opportunities: currentOpportunities.slice(0, 5), monitoringActive, serviceStatus }
       },
       timestamp: new Date().toISOString()
     };
@@ -533,14 +437,9 @@ class AIChatService {
             result = await elizaAgent[methodName](memory);
           }
           
-          if (typeof result === 'string') {
-            return result;
-          } else if (result?.content?.text) {
-            return result.content.text;
-          } else if (result?.text) {
-            return result.text;
-          }
-          
+          if (typeof result === 'string') return result;
+          else if (result?.content?.text) return result.content.text;
+          else if (result?.text) return result.text;
         } catch (methodError) {
           continue;
         }
@@ -553,14 +452,6 @@ class AIChatService {
   private async callAnthropic(message: string, context?: string): Promise<string> {
     const systemPrompt = `あなたは高度なDeFiアービトラージトレーダーです。
 リアルタイムの価格データとアービトラージ機会を分析し、実用的なアドバイスを提供します。
-
-専門知識:
-- リアルタイム価格監視とDEX間価格差分析
-- アービトラージ機会の検出と収益性評価
-- ガス代最適化と利益計算
-- リスク評価と信頼度スコアリング
-- 流動性分析と取引量評価
-
 ${context ? `現在のデータ: ${context}` : ''}`;
 
     const payload = JSON.stringify({
@@ -570,160 +461,152 @@ ${context ? `現在のデータ: ${context}` : ''}`;
       messages: [{ role: "user", content: message }]
     });
 
-    const options = {
-      hostname: 'api.anthropic.com',
-      port: 443,
-      path: '/v1/messages',
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': config.ANTHROPIC_API_KEY!,
-        'anthropic-version': '2023-06-01',
-        'Content-Length': Buffer.byteLength(payload)
-      }
-    };
+    try {
+      return new Promise((resolve, reject) => {
+        const req = https.request({
+          hostname: 'api.anthropic.com',
+          port: 443,
+          path: '/v1/messages',
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-api-key': config.ANTHROPIC_API_KEY!,
+            'anthropic-version': '2023-06-01',
+            'Content-Length': Buffer.byteLength(payload)
+          }
+        }, (res) => {
+          let data = '';
+          res.on('data', chunk => data += chunk);
+          res.on('end', () => {
+            try {
+              const parsed = JSON.parse(data);
+              resolve(parsed.content?.[0]?.text || "Anthropic APIからの応答を取得できませんでした。");
+            } catch (error) {
+              resolve("Anthropic APIの応答解析に失敗しました。");
+            }
+          });
+        });
 
-    const response = await makeHttpRequest(`https://api.anthropic.com/v1/messages`);
-    return response.content?.[0]?.text || "Anthropic APIからの応答を取得できませんでした。";
+        req.on('error', () => resolve("Anthropic APIの呼び出しに失敗しました。"));
+        req.write(payload);
+        req.end();
+      });
+    } catch (error) {
+      return "Anthropic APIの呼び出しに失敗しました。";
+    }
   }
 
   private generateEnhancedRuleBasedResponse(message: string): string {
     const lowerMessage = message.toLowerCase();
     
-    // アービトラージ機会の表示
     if ((lowerMessage.includes('機会') || lowerMessage.includes('opportunity')) && currentOpportunities.length > 0) {
       let response = `現在のアービトラージ機会 (${currentOpportunities.length}件):\n\n`;
-      
       currentOpportunities.slice(0, 5).forEach((opp, i) => {
         response += `${i + 1}. ${opp.token}\n`;
         response += `   📊 ${opp.buyExchange} → ${opp.sellExchange}\n`;
         response += `   💰 利益: $${opp.netProfit.toFixed(2)} (${opp.profitPercentage.toFixed(2)}%)\n`;
-        response += `   🎯 信頼度: ${opp.confidence.toUpperCase()}\n`;
-        response += `   ⛽ ガス代: $${opp.estimatedGasCost.toFixed(2)}\n\n`;
+        response += `   🎯 信頼度: ${opp.confidence.toUpperCase()}\n\n`;
       });
-      
       return response;
     }
 
-    // 監視状況の表示
     if (lowerMessage.includes('監視') || lowerMessage.includes('status')) {
       return `📊 アービトラージ監視状況:
 
 🔍 監視状態: ${monitoringActive ? '✅ アクティブ' : '❌ 停止中'}
 📈 価格データ: ${serviceStatus.priceFeeds ? '✅ 利用可能' : '❌ 制限中'}
 🤖 ElizaOS: ${serviceStatus.elizaos === 'available' ? '✅ 統合済み' : '⚠️ 制限モード'}
-💹 検出機会数: ${currentOpportunities.length}件
-
-設定:
-• 最小利益閾値: ${config.MIN_PROFIT_THRESHOLD}%
-• 最大ガス価格: ${config.MAX_GAS_PRICE} Gwei
-• 取引金額: $${config.TRADE_AMOUNT}`;
+💹 検出機会数: ${currentOpportunities.length}件`;
     }
 
-    // 基本的なアービトラージ情報
     const responses: { [key: string]: string } = {
       "アービトラージ": `DeFiアービトラージの基本:
-
-📊 現在の機能:
 • リアルタイム価格監視
 • DEX間価格差検出
 • 利益計算とガス代考慮
-• 信頼度評価システム
-
-🎯 検出可能な機会:
-• Uniswap vs SushiSwap
-• DEX vs CEX価格差
-• クロスチェーン価格差
-
-現在の機会を確認するには「機会」と入力してください。`,
-
-      "始め方": `アービトラージ監視の始め方:
-
-1. 📊 価格データ監視
-   • CoinGecko API統合
-   • DEXScreener連携
-   
-2. 🔍 機会検出
-   • 自動スキャニング
-   • 利益計算
-   
-3. ⚙️ 設定調整
-   • 利益閾値: ${config.MIN_PROFIT_THRESHOLD}%
-   • ガス上限: ${config.MAX_GAS_PRICE} Gwei
-
-「監視状況」で現在の状態を確認できます。`,
-
-      "リスク": `アービトラージのリスク管理:
-
-⚠️ 主要リスク:
-• ガス代変動 (現在制限: ${config.MAX_GAS_PRICE} Gwei)
-• スリッページ (大口取引時)
-• MEV攻撃 (フロントランニング)
-• 流動性不足
-
-🛡️ 対策:
-• 最小利益閾値設定 (${config.MIN_PROFIT_THRESHOLD}%以上)
-• ガス価格上限設定
-• 信頼度スコアリング
-• 段階的実行`
+• 信頼度評価システム`,
+      "始め方": "1. 価格データ監視 2. 機会検出 3. 設定調整",
+      "リスク": "主要リスク: ガス代変動、スリッページ、MEV攻撃、流動性不足"
     };
 
     for (const [keyword, response] of Object.entries(responses)) {
-      if (lowerMessage.includes(keyword)) {
-        return response;
-      }
+      if (lowerMessage.includes(keyword)) return response;
     }
 
-    return `DeFiアービトラージボットへようこそ！
-
-利用可能なコマンド:
-• 「機会」- 現在のアービトラージ機会
-• 「監視状況」- システム状態確認
-• 「アービトラージ」- 基本情報
-• 「リスク」- リスク管理情報
-• 「始め方」- 使用方法
-
-現在 ${currentOpportunities.length}件の機会を検出中です。`;
+    return `DeFiアービトラージボットへようこそ！現在 ${currentOpportunities.length}件の機会を検出中です。`;
   }
 }
 
-// サービス
+// Services
 const aiService = new AIChatService();
 
-// サービス初期化
+// Service initialization
 async function initializeServices() {
-  console.log("🔄 Initializing enhanced services...");
+  console.log("🔄 Initializing services...");
 
   try {
-    // ElizaOS 初期化
     await initializeElizaOS();
-
-    // アービトラージデータ収集器の初期化
     arbitrageCollector = new ArbitrageDataCollector(config);
     console.log("✅ Arbitrage data collector initialized");
 
-    // AI Service Test
     await aiService.generateResponse("テスト");
     serviceStatus.ai = true;
     console.log("✅ AI service ready");
 
-    // 価格フィード機能テスト
     if (config.COINGECKO_API_KEY) {
       serviceStatus.priceFeeds = true;
       console.log("✅ Price feeds ready");
     }
 
-    console.log("📊 Enhanced services initialized:", serviceStatus);
+    console.log("📊 Services initialized:", serviceStatus);
   } catch (error) {
     console.error("⚠️ Service initialization error:", error);
   }
 }
 
-// アービトラージ監視の開始/停止
+// Monitoring
+async function startMonitoringLoop() {
+  const monitoredTokens = ['ethereum', 'bitcoin', 'usd-coin', 'dai', 'chainlink'];
+  const intervalMs = 60000;
+
+  console.log(`🔄 Starting arbitrage monitoring for: ${monitoredTokens.join(', ')}`);
+
+  const runMonitoring = async () => {
+    if (!monitoringActive || !arbitrageCollector) return;
+
+    try {
+      console.log(`📊 [${new Date().toISOString()}] Collecting price data...`);
+      const priceData = await arbitrageCollector.collectPriceData(monitoredTokens);
+      console.log(`📈 Collected ${priceData.length} price points`);
+
+      if (priceData.length > 0) {
+        const opportunities = arbitrageCollector.analyzeArbitrageOpportunities(priceData);
+        currentOpportunities = opportunities;
+        console.log(`🎯 Found ${opportunities.length} arbitrage opportunities`);
+        
+        if (opportunities.length > 0) {
+          opportunities.slice(0, 3).forEach((opp, index) => {
+            console.log(`${index + 1}. ${opp.token}: ${opp.buyExchange}($${opp.buyPrice.toFixed(4)}) → ${opp.sellExchange}($${opp.sellPrice.toFixed(4)}) | Profit: ${opp.profitPercentage.toFixed(2)}% | Confidence: ${opp.confidence}`);
+          });
+
+          const highConfidenceOpps = opportunities.filter(o => o.confidence === 'high');
+          if (highConfidenceOpps.length > 0) {
+            console.log(`🚨 HIGH CONFIDENCE OPPORTUNITIES: ${highConfidenceOpps.length}`);
+          }
+        }
+      }
+    } catch (error) {
+      console.error("❌ Monitoring error:", error);
+    }
+  };
+
+  await runMonitoring();
+  const intervalId = setInterval(runMonitoring, intervalMs);
+  (global as any).monitoringIntervalId = intervalId;
+}
+
 async function toggleArbitrageMonitoring(): Promise<string> {
-  if (!arbitrageCollector) {
-    return "❌ アービトラージデータ収集器が初期化されていません";
-  }
+  if (!arbitrageCollector) return "❌ アービトラージデータ収集器が初期化されていません";
 
   if (monitoringActive) {
     monitoringActive = false;
@@ -732,69 +615,14 @@ async function toggleArbitrageMonitoring(): Promise<string> {
   } else {
     monitoringActive = true;
     serviceStatus.arbitrageMonitoring = true;
-    
-    // 監視開始
     startMonitoringLoop();
     return "▶️ アービトラージ監視を開始しました";
   }
 }
 
-// 監視ループ
-async function startMonitoringLoop() {
-  const monitoredTokens = ['ethereum', 'bitcoin', 'usd-coin', 'dai', 'chainlink'];
-  const intervalMs = 60000; // 1分間隔
-
-  console.log(`🔄 Starting arbitrage monitoring for: ${monitoredTokens.join(', ')}`);
-  console.log(`⏱️ Monitoring interval: ${intervalMs / 1000} seconds`);
-
-  const runMonitoring = async () => {
-    if (!monitoringActive || !arbitrageCollector) return;
-
-    try {
-      console.log(`📊 [${new Date().toISOString()}] Collecting price data...`);
-      
-      const priceData = await arbitrageCollector.collectPriceData(monitoredTokens);
-      console.log(`📈 Collected ${priceData.length} price points`);
-
-      if (priceData.length > 0) {
-        const opportunities = arbitrageCollector.analyzeArbitrageOpportunities(priceData);
-        currentOpportunities = opportunities;
-        
-        console.log(`🎯 Found ${opportunities.length} arbitrage opportunities`);
-        
-        if (opportunities.length > 0) {
-          // 上位3つの機会をログ出力
-          opportunities.slice(0, 3).forEach((opp, index) => {
-            console.log(`${index + 1}. ${opp.token}: ${opp.buyExchange}(${opp.buyPrice.toFixed(4)}) → ${opp.sellExchange}(${opp.sellPrice.toFixed(4)}) | Profit: ${opp.profitPercentage.toFixed(2)}% | Confidence: ${opp.confidence}`);
-          });
-
-          // 高信頼度の機会をアラート
-          const highConfidenceOpps = opportunities.filter(o => o.confidence === 'high');
-          if (highConfidenceOpps.length > 0) {
-            console.log(`🚨 HIGH CONFIDENCE OPPORTUNITIES: ${highConfidenceOpps.length}`);
-          }
-        }
-      }
-
-    } catch (error) {
-      console.error("❌ Monitoring error:", error);
-    }
-  };
-
-  // 初回実行
-  await runMonitoring();
-
-  // 定期実行
-  const intervalId = setInterval(runMonitoring, intervalMs);
-
-  // グローバルに保存（停止時に使用）
-  (global as any).monitoringIntervalId = intervalId;
-}
-
-// Chat Handler（アービトラージ機能統合）
+// Chat Handler
 async function handleChat(message: string, userId: string = "user") {
   try {
-    // 特別なコマンドをチェック
     const lowerMessage = message.toLowerCase();
     
     if (lowerMessage.includes('監視開始') || lowerMessage.includes('start monitoring')) {
@@ -819,27 +647,23 @@ async function handleChat(message: string, userId: string = "user") {
           response: "⏹️ アービトラージ監視を停止しました",
           timestamp: new Date().toISOString(),
           agent: "ArbitrageTrader",
-          mode: "Command Execution",
-          command: "stop_monitoring"
+          mode: "Command Execution"
         };
       } else {
         return {
           response: "⚠️ 監視は既に停止しています",
           timestamp: new Date().toISOString(),
-          agent: "ArbitrageTrader",
-          mode: "Command Execution"
+          agent: "ArbitrageTrader"
         };
       }
     }
 
-    // 手動データ収集コマンド
     if (lowerMessage.includes('価格収集') || lowerMessage.includes('collect prices')) {
       if (!arbitrageCollector) {
         return {
           response: "❌ アービトラージデータ収集器が初期化されていません",
           timestamp: new Date().toISOString(),
-          agent: "ArbitrageTrader",
-          mode: "Error"
+          agent: "ArbitrageTrader"
         };
       }
 
@@ -849,30 +673,20 @@ async function handleChat(message: string, userId: string = "user") {
       currentOpportunities = opportunities;
 
       return {
-        response: `📊 価格データ収集完了
-        
-📈 収集データ: ${priceData.length}件
-🎯 検出機会: ${opportunities.length}件
-${opportunities.length > 0 ? `\n上位機会:\n${opportunities.slice(0, 3).map((opp, i) => 
-  `${i + 1}. ${opp.token}: ${opp.profitPercentage.toFixed(2)}% (${opp.confidence})`
-).join('\n')}` : ''}`,
+        response: `📊 価格データ収集完了\n\n📈 収集データ: ${priceData.length}件\n🎯 検出機会: ${opportunities.length}件\n${opportunities.length > 0 ? `\n上位機会:\n${opportunities.slice(0, 3).map((opp, i) => `${i + 1}. ${opp.token}: ${opp.profitPercentage.toFixed(2)}% (${opp.confidence})`).join('\n')}` : ''}`,
         timestamp: new Date().toISOString(),
         agent: "ArbitrageTrader",
-        mode: "Data Collection",
-        dataCollected: priceData.length,
-        opportunitiesFound: opportunities.length
+        mode: "Data Collection"
       };
     }
 
-    // 通常のAI応答
     const response = await aiService.generateResponse(message);
 
     return {
       response,
       timestamp: new Date().toISOString(),
       agent: "ArbitrageTrader",
-      mode: serviceStatus.elizaos === 'available' ? "ElizaOS Enhanced" : 
-            serviceStatus.ai ? "AI Enhanced" : "Rule Based",
+      mode: serviceStatus.elizaos === 'available' ? "ElizaOS Enhanced" : serviceStatus.ai ? "AI Enhanced" : "Rule Based",
       elizaos_status: serviceStatus.elizaos,
       arbitrage_opportunities: currentOpportunities.length,
       monitoring_active: monitoringActive
@@ -885,6 +699,324 @@ ${opportunities.length > 0 ? `\n上位機会:\n${opportunities.slice(0, 3).map((
       timestamp: new Date().toISOString()
     };
   }
+}
+
+// Web Interface HTML
+function getWebInterfaceHTML(): string {
+  return `<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ElizaOS Arbitrage Bot - Complete Dashboard</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: #333; min-height: 100vh; }
+        .container { max-width: 1200px; margin: 0 auto; padding: 20px; }
+        .header { text-align: center; color: white; margin-bottom: 30px; }
+        .header h1 { font-size: 2.5rem; margin-bottom: 10px; }
+        .header p { font-size: 1.2rem; opacity: 0.9; }
+        .dashboard { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 30px; }
+        .card { background: white; border-radius: 15px; padding: 25px; box-shadow: 0 10px 30px rgba(0,0,0,0.1); transition: transform 0.3s ease; }
+        .card:hover { transform: translateY(-5px); }
+        .card h3 { color: #4a5568; margin-bottom: 15px; font-size: 1.3rem; }
+        .status-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 20px; }
+        .status-item { display: flex; align-items: center; gap: 10px; }
+        .status-indicator { width: 12px; height: 12px; border-radius: 50%; flex-shrink: 0; }
+        .status-active { background-color: #48bb78; }
+        .status-inactive { background-color: #ed8936; }
+        .status-error { background-color: #f56565; }
+        .controls { display: flex; flex-wrap: wrap; gap: 10px; margin: 20px 0; }
+        .btn { padding: 12px 24px; border: none; border-radius: 8px; cursor: pointer; font-weight: 600; transition: all 0.3s ease; text-decoration: none; display: inline-block; }
+        .btn-primary { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; }
+        .btn-secondary { background: #e2e8f0; color: #4a5568; }
+        .btn-success { background: #48bb78; color: white; }
+        .btn-danger { background: #f56565; color: white; }
+        .btn:hover { transform: translateY(-2px); box-shadow: 0 5px 15px rgba(0,0,0,0.2); }
+        .opportunities { grid-column: 1 / -1; }
+        .opportunities-list { max-height: 400px; overflow-y: auto; }
+        .opportunity-item { background: #f7fafc; border-radius: 8px; padding: 15px; margin-bottom: 10px; border-left: 4px solid #667eea; }
+        .opportunity-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+        .token-name { font-size: 1.2rem; font-weight: bold; color: #2d3748; }
+        .confidence { padding: 4px 12px; border-radius: 20px; font-size: 0.8rem; font-weight: bold; text-transform: uppercase; }
+        .confidence-high { background: #c6f6d5; color: #22543d; }
+        .confidence-medium { background: #fefcbf; color: #744210; }
+        .confidence-low { background: #fed7d7; color: #742a2a; }
+        .opportunity-details { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 15px; font-size: 0.9rem; }
+        .chat-section { grid-column: 1 / -1; margin-top: 30px; }
+        .chat-container { background: white; border-radius: 15px; padding: 25px; height: 400px; display: flex; flex-direction: column; }
+        .chat-messages { flex: 1; overflow-y: auto; margin-bottom: 20px; padding: 15px; background: #f7fafc; border-radius: 8px; }
+        .message { margin-bottom: 15px; padding: 10px 15px; border-radius: 8px; }
+        .message-user { background: #667eea; color: white; margin-left: 20%; }
+        .message-bot { background: #e2e8f0; color: #2d3748; margin-right: 20%; }
+        .chat-input-group { display: flex; gap: 10px; }
+        .chat-input { flex: 1; padding: 12px; border: 2px solid #e2e8f0; border-radius: 8px; font-size: 1rem; }
+        .chat-input:focus { outline: none; border-color: #667eea; }
+        .loading { display: none; text-align: center; color: #667eea; font-weight: bold; }
+        .no-opportunities { text-align: center; color: #718096; font-style: italic; padding: 40px; }
+        @media (max-width: 768px) { .dashboard { grid-template-columns: 1fr; } .opportunity-details { grid-template-columns: 1fr; } .header h1 { font-size: 2rem; } }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🤖 ElizaOS Arbitrage Bot</h1>
+            <p>Complete DeFi Arbitrage Monitoring System</p>
+        </div>
+        
+        <div class="dashboard">
+            <div class="card">
+                <h3>📊 System Status</h3>
+                <div class="status-grid">
+                    <div class="status-item"><div class="status-indicator" id="elizaos-status"></div><span>ElizaOS</span></div>
+                    <div class="status-item"><div class="status-indicator" id="monitoring-status"></div><span>Monitoring</span></div>
+                    <div class="status-item"><div class="status-indicator" id="pricefeeds-status"></div><span>Price Data</span></div>
+                    <div class="status-item"><div class="status-indicator" id="ai-status"></div><span>AI</span></div>
+                </div>
+                <div class="controls">
+                    <button class="btn btn-primary" onclick="startMonitoring()">📈 Start</button>
+                    <button class="btn btn-secondary" onclick="stopMonitoring()">⏹️ Stop</button>
+                    <button class="btn btn-success" onclick="collectPrices()">🔄 Collect</button>
+                    <button class="btn btn-primary" onclick="refreshData()">🔄 Refresh</button>
+                </div>
+            </div>
+            
+            <div class="card">
+                <h3>📈 Opportunities</h3>
+                <div style="text-align: center; margin: 20px 0;">
+                    <div style="font-size: 3rem; font-weight: bold; color: #667eea;" id="total-opportunities">-</div>
+                    <div style="color: #718096;">Total Found</div>
+                </div>
+                <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 15px; text-align: center;">
+                    <div><div style="font-size: 1.5rem; font-weight: bold; color: #48bb78;" id="high-confidence">-</div><div style="font-size: 0.8rem; color: #718096;">HIGH</div></div>
+                    <div><div style="font-size: 1.5rem; font-weight: bold; color: #ed8936;" id="medium-confidence">-</div><div style="font-size: 0.8rem; color: #718096;">MEDIUM</div></div>
+                    <div><div style="font-size: 1.5rem; font-weight: bold; color: #f56565;" id="low-confidence">-</div><div style="font-size: 0.8rem; color: #718096;">LOW</div></div>
+                </div>
+            </div>
+            
+            <div class="card opportunities">
+                <h3>🎯 Detected Opportunities</h3>
+                <div class="opportunities-list" id="opportunities-list">
+                    <div class="no-opportunities">Loading data...</div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="chat-section">
+            <div class="card">
+                <h3>💬 AI Chat</h3>
+                <div class="chat-container">
+                    <div class="chat-messages" id="chat-messages">
+                        <div class="message message-bot">Hello! I'm your DeFi arbitrage specialist. Ask me anything about opportunities, risks, or use commands like "start monitoring".</div>
+                    </div>
+                    <div style="margin-bottom: 15px; display: flex; flex-wrap: wrap; gap: 8px;">
+                        <small style="width: 100%; color: #718096; margin-bottom: 5px;">Quick Commands:</small>
+                        <button class="btn btn-secondary" style="font-size: 0.8rem; padding: 6px 12px;" onclick="quickCommand('Show opportunities')">Opportunities</button>
+                        <button class="btn btn-secondary" style="font-size: 0.8rem; padding: 6px 12px;" onclick="quickCommand('System status')">Status</button>
+                        <button class="btn btn-secondary" style="font-size: 0.8rem; padding: 6px 12px;" onclick="quickCommand('About risks')">Risks</button>
+                        <button class="btn btn-secondary" style="font-size: 0.8rem; padding: 6px 12px;" onclick="quickCommand('How to start')">Start Guide</button>
+                    </div>
+                    <div class="chat-input-group">
+                        <input type="text" class="chat-input" id="chat-input" placeholder="Type your message..." onkeypress="handleChatKeyPress(event)">
+                        <button class="btn btn-primary" onclick="sendChatMessage()">Send</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="loading" id="loading">🔄 Processing...</div>
+    </div>
+
+    <script>
+        let systemStatus = {};
+        let opportunities = [];
+        
+        document.addEventListener('DOMContentLoaded', function() {
+            refreshData();
+            setInterval(refreshData, 30000);
+        });
+        
+        async function refreshData() {
+            try {
+                const healthResponse = await fetch('/health');
+                const healthData = await healthResponse.json();
+                systemStatus = healthData;
+                updateStatusIndicators(healthData);
+                
+                const oppResponse = await fetch('/opportunities');
+                const oppData = await oppResponse.json();
+                opportunities = oppData.opportunities || [];
+                updateOpportunitiesSummary(oppData.summary || {});
+                updateOpportunitiesList(opportunities);
+            } catch (error) {
+                console.error('Data refresh error:', error);
+                showError('Failed to refresh data');
+            }
+        }
+        
+        function updateStatusIndicators(data) {
+            document.getElementById('elizaos-status').className = 'status-indicator ' + (data.services?.elizaos === 'available' ? 'status-active' : 'status-inactive');
+            document.getElementById('monitoring-status').className = 'status-indicator ' + (data.arbitrage?.monitoring_active ? 'status-active' : 'status-inactive');
+            document.getElementById('pricefeeds-status').className = 'status-indicator ' + (data.services?.priceFeeds ? 'status-active' : 'status-inactive');
+            document.getElementById('ai-status').className = 'status-indicator ' + (data.services?.ai ? 'status-active' : 'status-inactive');
+        }
+        
+        function updateOpportunitiesSummary(summary) {
+            document.getElementById('total-opportunities').textContent = summary.total || 0;
+            document.getElementById('high-confidence').textContent = summary.high_confidence || 0;
+            document.getElementById('medium-confidence').textContent = summary.medium_confidence || 0;
+            document.getElementById('low-confidence').textContent = summary.low_confidence || 0;
+        }
+        
+        function updateOpportunitiesList(opportunities) {
+            const container = document.getElementById('opportunities-list');
+            
+            if (opportunities.length === 0) {
+                container.innerHTML = '<div class="no-opportunities">No profitable arbitrage opportunities detected.</div>';
+                return;
+            }
+            
+            container.innerHTML = opportunities.map(opp => \`
+                <div class="opportunity-item">
+                    <div class="opportunity-header">
+                        <div class="token-name">\${opp.token}</div>
+                        <div class="confidence confidence-\${opp.confidence}">\${opp.confidence}</div>
+                    </div>
+                    <div class="opportunity-details">
+                        <div><strong>Buy:</strong> \${opp.buyExchange}<br><strong>Price:</strong> $\${opp.buyPrice.toFixed(4)}</div>
+                        <div><strong>Sell:</strong> \${opp.sellExchange}<br><strong>Price:</strong> $\${opp.sellPrice.toFixed(4)}</div>
+                        <div><strong>Profit:</strong> $\${opp.netProfit.toFixed(2)}<br><strong>Rate:</strong> \${opp.profitPercentage.toFixed(2)}%</div>
+                    </div>
+                </div>
+            \`).join('');
+        }
+        
+        async function startMonitoring() {
+            try {
+                showLoading();
+                const response = await fetch('/chat', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ message: 'start monitoring' })
+                });
+                const data = await response.json();
+                addChatMessage('start monitoring', data.response, 'success');
+                setTimeout(refreshData, 2000);
+            } catch (error) {
+                showError('Failed to start monitoring');
+            } finally {
+                hideLoading();
+            }
+        }
+        
+        async function stopMonitoring() {
+            try {
+                showLoading();
+                const response = await fetch('/chat', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ message: 'stop monitoring' })
+                });
+                const data = await response.json();
+                addChatMessage('stop monitoring', data.response, 'info');
+                setTimeout(refreshData, 2000);
+            } catch (error) {
+                showError('Failed to stop monitoring');
+            } finally {
+                hideLoading();
+            }
+        }
+        
+        async function collectPrices() {
+            try {
+                showLoading();
+                const response = await fetch('/chat', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ message: 'collect prices' })
+                });
+                const data = await response.json();
+                addChatMessage('collect prices', data.response, 'success');
+                setTimeout(refreshData, 3000);
+            } catch (error) {
+                showError('Failed to collect prices');
+            } finally {
+                hideLoading();
+            }
+        }
+        
+        async function sendChatMessage() {
+            const input = document.getElementById('chat-input');
+            const message = input.value.trim();
+            if (!message) return;
+            
+            try {
+                addChatMessage(message, '', 'user');
+                input.value = '';
+                showLoading();
+                
+                const response = await fetch('/chat', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ message: message })
+                });
+                
+                const data = await response.json();
+                addChatMessage('', data.response, 'bot');
+                
+                if (message.includes('monitor') || message.includes('price') || message.includes('opportunit')) {
+                    setTimeout(refreshData, 2000);
+                }
+            } catch (error) {
+                addChatMessage('', 'Error occurred. Please try again.', 'error');
+            } finally {
+                hideLoading();
+            }
+        }
+        
+        function quickCommand(command) {
+            const commands = {
+                'Show opportunities': '現在のアービトラージ機会を教えて',
+                'System status': '監視状況を教えて',
+                'About risks': 'アービトラージのリスクについて教えて',
+                'How to start': 'アービトラージの始め方を教えて'
+            };
+            document.getElementById('chat-input').value = commands[command] || command;
+            sendChatMessage();
+        }
+        
+        function handleChatKeyPress(event) {
+            if (event.key === 'Enter') {
+                sendChatMessage();
+            }
+        }
+        
+        function addChatMessage(userMessage, botResponse, type) {
+            const chatMessages = document.getElementById('chat-messages');
+            
+            if (userMessage) {
+                const userDiv = document.createElement('div');
+                userDiv.className = 'message message-user';
+                userDiv.textContent = userMessage;
+                chatMessages.appendChild(userDiv);
+            }
+            
+            if (botResponse) {
+                const botDiv = document.createElement('div');
+                botDiv.className = \`message message-bot \${type ? 'message-' + type : ''}\`;
+                botDiv.innerHTML = botResponse.replace(/\\n/g, '<br>');
+                chatMessages.appendChild(botDiv);
+            }
+            
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+        }
+        
+        function showLoading() { document.getElementById('loading').style.display = 'block'; }
+        function hideLoading() { document.getElementById('loading').style.display = 'none'; }
+        function showError(message) { addChatMessage('', \`❌ \${message}\`, 'error'); }
+    </script>
+</body>
+</html>`;
 }
 
 // HTTP Server
@@ -900,12 +1032,18 @@ const server = createServer(async (req, res) => {
   }
 
   try {
-    if (req.url === "/" || req.url === "/health") {
+    if (req.url === "/" || req.url === "/dashboard") {
+      res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
+      res.end(getWebInterfaceHTML());
+      return;
+    }
+    
+    if (req.url === "/health") {
       res.writeHead(200, { "Content-Type": "application/json" });
       res.end(JSON.stringify({
         status: "healthy",
         service: "eliza-arbitrage-bot",
-        version: "2.0.0-data-collection",
+        version: "3.0.0-complete",
         timestamp: new Date().toISOString(),
         uptime: process.uptime(),
         environment: {
@@ -941,18 +1079,7 @@ const server = createServer(async (req, res) => {
           high_confidence_count: currentOpportunities.filter(o => o.confidence === 'high').length,
           medium_confidence_count: currentOpportunities.filter(o => o.confidence === 'medium').length,
           low_confidence_count: currentOpportunities.filter(o => o.confidence === 'low').length,
-          last_scan: currentOpportunities.length > 0 ? new Date(currentOpportunities[0].timestamp).toISOString() : null,
-          configuration: {
-            min_profit_threshold: config.MIN_PROFIT_THRESHOLD,
-            max_gas_price: config.MAX_GAS_PRICE,
-            trade_amount: config.TRADE_AMOUNT,
-            monitored_tokens: ['ethereum', 'bitcoin', 'usd-coin', 'dai', 'chainlink']
-          },
-          api_status: {
-            coingecko: config.COINGECKO_API_KEY ? "configured" : "missing",
-            dexscreener: "available",
-            price_feeds: serviceStatus.priceFeeds ? "active" : "inactive"
-          }
+          last_scan: currentOpportunities.length > 0 ? new Date(currentOpportunities[0].timestamp).toISOString() : null
         }
       }));
     }
@@ -963,6 +1090,8 @@ const server = createServer(async (req, res) => {
         summary: {
           total: currentOpportunities.length,
           high_confidence: currentOpportunities.filter(o => o.confidence === 'high').length,
+          medium_confidence: currentOpportunities.filter(o => o.confidence === 'medium').length,
+          low_confidence: currentOpportunities.filter(o => o.confidence === 'low').length,
           potential_profit: currentOpportunities.reduce((sum, opp) => sum + opp.netProfit, 0),
           last_update: currentOpportunities.length > 0 ? new Date(currentOpportunities[0].timestamp).toISOString() : null
         },
@@ -975,29 +1104,17 @@ const server = createServer(async (req, res) => {
     else if (req.url === "/config") {
       res.writeHead(200, { "Content-Type": "application/json" });
       res.end(JSON.stringify({
-        environment: {
-          NODE_ENV: process.env.NODE_ENV,
-          RAILWAY_ENVIRONMENT,
-          RAILWAY_SERVICE_NAME,
-          PORT
-        },
         api_keys: {
           ANTHROPIC_API_KEY: config.ANTHROPIC_API_KEY ? "✅ Configured" : "❌ Missing",
           OPENAI_API_KEY: config.OPENAI_API_KEY ? "✅ Configured" : "❌ Missing",
-          COINGECKO_API_KEY: config.COINGECKO_API_KEY ? "✅ Configured" : "❌ Missing",
-          ALCHEMY_API_KEY: config.ALCHEMY_API_KEY ? "✅ Configured" : "❌ Missing"
+          COINGECKO_API_KEY: config.COINGECKO_API_KEY ? "✅ Configured" : "❌ Missing"
         },
         arbitrage_config: {
           MIN_PROFIT_THRESHOLD: config.MIN_PROFIT_THRESHOLD + "%",
           MAX_GAS_PRICE: config.MAX_GAS_PRICE + " Gwei",
           TRADE_AMOUNT: "$" + config.TRADE_AMOUNT
         },
-        services: serviceStatus,
-        recommendations: [
-          !config.ANTHROPIC_API_KEY && !config.OPENAI_API_KEY && "Add AI API key for enhanced chat",
-          !config.COINGECKO_API_KEY && "Add CoinGecko API key for price data",
-          !config.ALCHEMY_API_KEY && "Add Alchemy API key for blockchain data"
-        ].filter(Boolean)
+        services: serviceStatus
       }));
     }
     else if (req.url === "/chat") {
@@ -1006,52 +1123,12 @@ const server = createServer(async (req, res) => {
         res.end(JSON.stringify({
           endpoint: "/chat",
           method: "POST",
-          description: "Chat with the Enhanced ArbitrageTrader AI agent with real-time data",
-          usage: {
-            url: "https://eliza-arbitrage-bot-production.up.railway.app/chat",
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body_format: {
-              message: "string (required)",
-              userId: "string (optional, defaults to 'user')"
-            }
+          description: "Chat with Enhanced ArbitrageTrader AI agent",
+          web_interface: {
+            available: true,
+            url: RAILWAY_SERVICE_NAME ? `https://${RAILWAY_SERVICE_NAME}/` : "http://localhost:3000/",
+            features: ["Real-time dashboard", "Interactive controls", "AI chat interface"]
           },
-          special_commands: [
-            {
-              command: "監視開始 / start monitoring",
-              description: "Start real-time arbitrage monitoring"
-            },
-            {
-              command: "監視停止 / stop monitoring", 
-              description: "Stop arbitrage monitoring"
-            },
-            {
-              command: "価格収集 / collect prices",
-              description: "Manual price data collection"
-            },
-            {
-              command: "機会 / opportunities",
-              description: "Show current arbitrage opportunities"
-            },
-            {
-              command: "監視状況 / status",
-              description: "Show monitoring status"
-            }
-          ],
-          examples: [
-            {
-              request: { message: "監視開始" },
-              description: "Start arbitrage monitoring"
-            },
-            {
-              request: { message: "現在のアービトラージ機会を教えて" },
-              description: "Ask about current opportunities"
-            },
-            {
-              request: { message: "価格収集" },
-              description: "Manual data collection"
-            }
-          ],
           current_status: {
             monitoring_active: monitoringActive,
             opportunities_available: currentOpportunities.length,
@@ -1065,7 +1142,6 @@ const server = createServer(async (req, res) => {
         req.on("end", async () => {
           try {
             const { message, userId } = JSON.parse(body);
-            
             if (!message) {
               res.writeHead(400, { "Content-Type": "application/json" });
               res.end(JSON.stringify({ error: "Message is required" }));
@@ -1073,7 +1149,6 @@ const server = createServer(async (req, res) => {
             }
 
             const chatResponse = await handleChat(message, userId);
-            
             res.writeHead(200, { "Content-Type": "application/json" });
             res.end(JSON.stringify(chatResponse));
           } catch (parseError) {
@@ -1081,19 +1156,14 @@ const server = createServer(async (req, res) => {
             res.end(JSON.stringify({ error: "Invalid JSON" }));
           }
         });
-      } else {
-        res.writeHead(405, { "Content-Type": "application/json" });
-        res.end(JSON.stringify({ 
-          error: "Method Not Allowed", 
-          allowed_methods: ["GET", "POST"]
-        }));
       }
     }
     else {
       res.writeHead(404, { "Content-Type": "application/json" });
       res.end(JSON.stringify({
         error: "Not Found",
-        available_endpoints: ["/", "/health", "/chat", "/arbitrage", "/opportunities", "/config"]
+        available_endpoints: ["/", "/dashboard", "/health", "/chat", "/arbitrage", "/opportunities", "/config"],
+        web_interface: "Access dashboard at /"
       }));
     }
   } catch (error) {
@@ -1109,13 +1179,10 @@ const server = createServer(async (req, res) => {
 // Graceful shutdown
 const gracefulShutdown = (signal: string) => {
   console.log(`📥 ${signal} received, shutting down gracefully...`);
-  
-  // 監視停止
   if (monitoringActive && (global as any).monitoringIntervalId) {
     clearInterval((global as any).monitoringIntervalId);
     console.log("⏹️ Arbitrage monitoring stopped");
   }
-  
   server.close(() => {
     console.log('🔚 Server closed');
     process.exit(0);
@@ -1128,31 +1195,27 @@ process.on('SIGINT', () => gracefulShutdown('SIGINT'));
 // Start server
 async function start() {
   try {
-    console.log("🚀 Starting Enhanced Arbitrage Bot with Data Collection...");
-    
+    console.log("🚀 Starting Complete ElizaOS Arbitrage Bot...");
     await initializeServices();
     
     server.listen(PORT, "0.0.0.0", () => {
       console.log(`🌐 Server running on port ${PORT}`);
-      console.log(`🔗 Health: http://localhost:${PORT}/health`);
-      console.log(`📊 Arbitrage: http://localhost:${PORT}/arbitrage`);
-      console.log(`🎯 Opportunities: http://localhost:${PORT}/opportunities`);
-      console.log(`💬 Chat: http://localhost:${PORT}/chat`);
-      console.log("✅ Enhanced arbitrage bot ready!");
+      console.log(`🎛️ Dashboard: https://${RAILWAY_SERVICE_NAME || 'localhost'}/`);
+      console.log(`📊 API: https://${RAILWAY_SERVICE_NAME || 'localhost'}/health`);
+      console.log("✅ Complete arbitrage system ready!");
       
       if (serviceStatus.elizaos === 'available') {
         console.log(`🎉 ElizaOS integrated with ${elizaAvailableMethods.length} methods`);
       }
       
       if (config.COINGECKO_API_KEY) {
-        console.log("💰 Price feeds configured - ready for monitoring");
+        console.log("💰 Price feeds ready - start monitoring via dashboard!");
       } else {
-        console.log("⚠️ Add COINGECKO_API_KEY for price monitoring");
+        console.log("⚠️ Add COINGECKO_API_KEY for full functionality");
       }
     });
-    
   } catch (error) {
-    console.error("❌ Server startup failed:", error);
+    console.error("❌ Startup failed:", error);
     process.exit(1);
   }
 }
